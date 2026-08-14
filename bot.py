@@ -48,27 +48,14 @@ def get_user_accounts(user_id):
         save_data(USERS_DATA)
     return USERS_DATA[str_id]
 
-async def safe_send_links(context: ContextTypes.DEFAULT_TYPE, chat_id: int, header: str, links: list, footer: str):
-    # ارسال سربرگ
-    await context.bot.send_message(chat_id=chat_id, text=header, parse_mode="Markdown")
-    
-    # ارسال لینک‌ها در بسته‌های کوچک تا سقف تلگرام پر نشود
-    chunk = []
-    chunk_len = 0
-    for item in links:
-        if chunk_len + len(item) > 2500:
-            await context.bot.send_message(chat_id=chat_id, text="\n\n".join(chunk), parse_mode="Markdown", disable_web_page_preview=True)
-            chunk = [item]
-            chunk_len = len(item)
-        else:
-            chunk.append(item)
-            chunk_len += len(item)
-            
-    if chunk:
-        await context.bot.send_message(chat_id=chat_id, text="\n\n".join(chunk), parse_mode="Markdown", disable_web_page_preview=True)
-        
-    # ارسال پاورقی
-    await context.bot.send_message(chat_id=chat_id, text=footer, parse_mode="Markdown")
+async def safe_send_text(context: ContextTypes.DEFAULT_TYPE, chat_id: int, text: str):
+    while len(text) > 0:
+        chunk = text[:1500]
+        text = text[1500:]
+        try:
+            await context.bot.send_message(chat_id=chat_id, text=chunk, disable_web_page_preview=True)
+        except Exception:
+            pass
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -147,7 +134,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("❌ هیچ اکانت فعالی برای دریافت آمار انتخاب نشده است.", reply_markup=kb)
             return
 
-        await query.edit_message_text("⏳ **در حال استخراج و محاسبه حجم فضای ابری... لطفاً شکیبا باشید.**", parse_mode="Markdown")
+        await query.edit_message_text("⏳ **در حال محاسبه حجم مصرفی...**", parse_mode="Markdown")
         remote_name = user_info["accounts"][active_acc]["remote"]
         res = subprocess.run(["rclone", "size", "--json", f"{remote_name}:"], capture_output=True, text=True)
 
@@ -162,12 +149,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text = (
                 f"📊 **آمار لحظه‌ای اکانت:** `{active_acc}`\n"
                 "──────────────────────\n"
-                f"📁 **تعداد فایل‌های ذخیره‌شده:** `{count}` عدد\n"
+                f"📁 **تعداد فایل‌ها:** `{count}` عدد\n"
                 f"💾 **فضای مصرف‌شده:** {size_text}\n"
                 "──────────────────────"
             )
         except Exception:
-            text = "❌ خطایی در خواندن اطلاعات از سرور رخ داد."
+            text = "❌ خطایی در خواندن اطلاعات رخ داد."
 
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
         await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
@@ -313,7 +300,7 @@ async def cancel_conv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
-    await asyncio.sleep(2.0)
+    await asyncio.sleep(2.5)
 
     items = USER_QUEUES.pop(user_id, [])
     USER_TASKS.pop(user_id, None)
@@ -336,8 +323,7 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
 
     status_msg = await context.bot.send_message(
         chat_id=int(user_id),
-        text=f"⚡ **در حال دریافت و دانلود {count} فایل از تلگرام...**",
-        parse_mode="Markdown"
+        text=f"⚡ دریافت {count} فایل آغاز شد..."
     )
 
     downloaded_files = []
@@ -346,7 +332,7 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
     try:
         for idx, item in enumerate(items, 1):
             tg_file, original_name = item
-            clean_name = f"file_{idx}_{original_name}" if not original_name.startswith("file_") else original_name
+            clean_name = f"f_{idx}_{original_name}"
             save_path = os.path.join(batch_dir, clean_name)
 
             await tg_file.download_to_drive(save_path)
@@ -355,10 +341,7 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
 
         total_mb = round(total_bytes / (1024 * 1024), 2)
         try:
-            await status_msg.edit_text(
-                f"☁️ **در حال انتقال {count} فایل ({total_mb} MB) به سرور ابری...**\n🎯 مقصد: `{active_acc}`",
-                parse_mode="Markdown"
-            )
+            await status_msg.edit_text(f"☁️ انتقال {count} فایل ({total_mb} MB) به {active_acc}...")
         except Exception:
             pass
 
@@ -377,33 +360,26 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
 
-            header = (
-                f"✅ **تمامی {count} فایل با موفقیت آپلود شدند!**\n"
-                f"──────────────────\n"
-                f"📦 **حجم کل بسته:** `{total_mb} MB`\n"
-                f"🎯 **اکانت مقصد:** `{active_acc}`\n"
-                f"──────────────────"
-            )
-
-            links_list = []
+            report = f"✅ آپلود {count} فایل با موفقیت انجام شد ({total_mb} MB):\n\n"
             for fname in downloaded_files:
                 link_cmd = ["rclone", "link", f"{remote_name}:{fname}"]
                 l_res = subprocess.run(link_cmd, capture_output=True, text=True)
                 url = l_res.stdout.strip()
                 if url.startswith("http"):
-                    links_list.append(f"🔹 `{fname}`\n🔗 `{url}`")
+                    report += f"📄 {fname}\n🔗 {url}\n\n"
                 else:
-                    links_list.append(f"🔹 `{fname}`: ذخیره شد.")
+                    report += f"📄 {fname} (ذخیره شد)\n\n"
 
-            footer = "🟢 **فاز آپلود فعال است؛ بسته بعدی را ارسال کنید.**"
-            
-            await safe_send_links(context, int(user_id), header, links_list, footer)
+            report += "🟢 فاز آپلود فعال است."
+            await safe_send_text(context, int(user_id), report)
 
         else:
-            await status_msg.edit_text(f"❌ خطا هنگام انتقال به فضای ابری:\n`{res.stderr.strip()}`", parse_mode="Markdown")
+            err_msg = res.stderr.strip()[:200]
+            await status_msg.edit_text(f"❌ خطا هنگام انتقال:\n{err_msg}")
 
     except Exception as e:
-        await context.bot.send_message(chat_id=int(user_id), text=f"❌ خطا در پردازش: {str(e)}")
+        clean_err = str(e)[:200]
+        await context.bot.send_message(chat_id=int(user_id), text=f"❌ خطا: {clean_err}")
     finally:
         if os.path.exists(batch_dir):
             shutil.rmtree(batch_dir)
@@ -413,7 +389,7 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_info = get_user_accounts(user_id)
 
     if not user_info.get('upload_mode', False):
-        await update.message.reply_text("⚠️ فاز آپلود خاموش است! ابتدا دستور /start را بزنید و فاز آپلود را روشن کنید.")
+        await update.message.reply_text("⚠️ فاز آپلود خاموش است! /start را بزنید و فاز آپلود را روشن کنید.")
         return
 
     tg_file = None
@@ -467,5 +443,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
 
-    print("🚀 ربات با رفع کامل محدودیت طول پیام فعال شد...")
+    print("🚀 ربات با رفع کامل باگ محدودیت طول کاراکتر فعال شد...")
     app.run_polling()
