@@ -48,24 +48,27 @@ def get_user_accounts(user_id):
         save_data(USERS_DATA)
     return USERS_DATA[str_id]
 
-async def send_split_messages(context: ContextTypes.DEFAULT_TYPE, chat_id: int, text: str, reply_markup=None):
-    max_len = 3800
-    if len(text) <= max_len:
-        await context.bot.send_message(chat_id=chat_id, text=text, parse_mode="Markdown", reply_markup=reply_markup)
-        return
-
-    lines = text.split("\n\n")
-    current_chunk = ""
-    for line in lines:
-        if len(current_chunk) + len(line) + 2 > max_len:
-            if current_chunk:
-                await context.bot.send_message(chat_id=chat_id, text=current_chunk, parse_mode="Markdown")
-            current_chunk = line
+async def safe_send_links(context: ContextTypes.DEFAULT_TYPE, chat_id: int, header: str, links: list, footer: str):
+    # ارسال سربرگ
+    await context.bot.send_message(chat_id=chat_id, text=header, parse_mode="Markdown")
+    
+    # ارسال لینک‌ها در بسته‌های کوچک تا سقف تلگرام پر نشود
+    chunk = []
+    chunk_len = 0
+    for item in links:
+        if chunk_len + len(item) > 2500:
+            await context.bot.send_message(chat_id=chat_id, text="\n\n".join(chunk), parse_mode="Markdown", disable_web_page_preview=True)
+            chunk = [item]
+            chunk_len = len(item)
         else:
-            current_chunk = f"{current_chunk}\n\n{line}" if current_chunk else line
-
-    if current_chunk:
-        await context.bot.send_message(chat_id=chat_id, text=current_chunk, parse_mode="Markdown", reply_markup=reply_markup)
+            chunk.append(item)
+            chunk_len += len(item)
+            
+    if chunk:
+        await context.bot.send_message(chat_id=chat_id, text="\n\n".join(chunk), parse_mode="Markdown", disable_web_page_preview=True)
+        
+    # ارسال پاورقی
+    await context.bot.send_message(chat_id=chat_id, text=footer, parse_mode="Markdown")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -164,7 +167,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "──────────────────────"
             )
         except Exception:
-            text = "❌ خطایی در خواندن اطلاعات از سرور مگا رخ داد."
+            text = "❌ خطایی در خواندن اطلاعات از سرور رخ داد."
 
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
         await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
@@ -333,7 +336,7 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
 
     status_msg = await context.bot.send_message(
         chat_id=int(user_id),
-        text=f"⚡ **در حال دریافت و آماده‌سازی {count} فایل...**",
+        text=f"⚡ **در حال دریافت و دانلود {count} فایل از تلگرام...**",
         parse_mode="Markdown"
     )
 
@@ -351,10 +354,13 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
             downloaded_files.append(clean_name)
 
         total_mb = round(total_bytes / (1024 * 1024), 2)
-        await status_msg.edit_text(
-            f"☁️ **در حال انتقال {count} فایل ({total_mb} MB) به سرور ابری...**\n🎯 مقصد: `{active_acc}`",
-            parse_mode="Markdown"
-        )
+        try:
+            await status_msg.edit_text(
+                f"☁️ **در حال انتقال {count} فایل ({total_mb} MB) به سرور ابری...**\n🎯 مقصد: `{active_acc}`",
+                parse_mode="Markdown"
+            )
+        except Exception:
+            pass
 
         upload_cmd = [
             "rclone", "copy", batch_dir, target,
@@ -366,12 +372,15 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
         res = subprocess.run(upload_cmd, capture_output=True, text=True)
 
         if res.returncode == 0:
-            await status_msg.delete()
+            try:
+                await status_msg.delete()
+            except Exception:
+                pass
 
             header = (
                 f"✅ **تمامی {count} فایل با موفقیت آپلود شدند!**\n"
                 f"──────────────────\n"
-                f"📦 **حجم کل:** `{total_mb} MB`\n"
+                f"📦 **حجم کل بسته:** `{total_mb} MB`\n"
                 f"🎯 **اکانت مقصد:** `{active_acc}`\n"
                 f"──────────────────"
             )
@@ -386,16 +395,15 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     links_list.append(f"🔹 `{fname}`: ذخیره شد.")
 
-            footer = "\n\n🟢 **فاز آپلود فعال است؛ بسته بعدی را بفرستید.**"
-            full_response = header + "\n\n" + "\n\n".join(links_list) + footer
-
-            await send_split_messages(context, int(user_id), full_response)
+            footer = "🟢 **فاز آپلود فعال است؛ بسته بعدی را ارسال کنید.**"
+            
+            await safe_send_links(context, int(user_id), header, links_list, footer)
 
         else:
-            await status_msg.edit_text(f"❌ خطا هنگام انتقال:\n`{res.stderr.strip()}`", parse_mode="Markdown")
+            await status_msg.edit_text(f"❌ خطا هنگام انتقال به فضای ابری:\n`{res.stderr.strip()}`", parse_mode="Markdown")
 
     except Exception as e:
-        await status_msg.edit_text(f"❌ خطا در پردازش: {str(e)}")
+        await context.bot.send_message(chat_id=int(user_id), text=f"❌ خطا در پردازش: {str(e)}")
     finally:
         if os.path.exists(batch_dir):
             shutil.rmtree(batch_dir)
@@ -459,5 +467,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
 
-    print("🚀 ربات آپلود هوشمند با مدیریت خودکار پیام‌های طولانی فعال شد...")
+    print("🚀 ربات با رفع کامل محدودیت طول پیام فعال شد...")
     app.run_polling()
