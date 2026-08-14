@@ -155,7 +155,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         acc_name = data.replace("delacc_", "")
         acc_info = user_info["accounts"].get(acc_name)
         if acc_info:
-            os.system(f'rclone config delete {acc_info["remote"]}')
+        subprocess.run(["rclone", "config", "delete", remote_name], capture_output=True, text=True)
+        err_msg = result.stderr.strip() if result.stderr else "بدون پاسخ از سرور"
             del user_info["accounts"][acc_name]
             if user_info.get("active_acc") == acc_name:
                 user_info["active_acc"] = list(user_info["accounts"].keys())[0] if user_info["accounts"] else None
@@ -232,10 +233,11 @@ async def get_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remote_name = f"u{user_id}_{len(user_info['accounts']) + 1}"
     msg = await update.message.reply_text("⚡ **در حال برقراری ارتباط لایو و تست صحت اطلاعات...**")
     
-    os.system(f'rclone config create {remote_name} {srv_type} user "{acc_user}" pass "{acc_pass}"')
+    obs_res = subprocess.run(["rclone", "obscure", acc_pass], capture_output=True, text=True)
+    obscured_pass = obs_res.stdout.strip()
+    subprocess.run(["rclone", "config", "create", remote_name, srv_type, f"user={acc_user}", f"pass={obscured_pass}"], capture_output=True, text=True)
     
-    test_cmd = f'rclone lsd {remote_name}:'
-    result = subprocess.run(test_cmd, shell=True, capture_output=True, text=True)
+    result = subprocess.run(["rclone", "lsd", f"{remote_name}:"], capture_output=True, text=True)
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
     if result.returncode == 0:
@@ -244,8 +246,9 @@ async def get_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_data(USERS_DATA)
         await msg.edit_text(f"🎉 **تبریک!** اکانت **{acc_name}** با موفقیت تایید و فعال گردید.", parse_mode="Markdown", reply_markup=kb)
     else:
-        os.system(f'rclone config delete {remote_name}')
-        await msg.edit_text("❌ **اتصال ناموفق بود!**\nاطلاعات ورود اشتباه است یا سرور پاسخ نداد.", reply_markup=kb)
+        subprocess.run(["rclone", "config", "delete", remote_name], capture_output=True, text=True)
+        err_msg = result.stderr.strip() if result.stderr else "بدون پاسخ از سرور"
+        await msg.edit_text(f"❌ **اتصال ناموفق بود!**\n\n🔍 **علت:**\n`{err_msg}`", reply_markup=kb, parse_mode="Markdown")
         
     return ConversationHandler.END
 
