@@ -47,7 +47,7 @@ def rebuild_rclone_configs():
             pwd = acc_info.get("pass")
             if r_name and user and pwd:
                 subprocess.run(
-                    ["rclone", "config", "create", r_name, s_type, f"user={user}", f"pass={pwd}"],
+                    ["rclone", "config", "create", r_name, s_type, "user", user, "pass", pwd],
                     capture_output=True, text=True
                 )
 
@@ -303,10 +303,11 @@ async def get_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remote_name = f"u{user_id}_{len(user_info['accounts']) + 1}"
     msg = await update.message.reply_text("⚡ **در حال بررسی و اعتبارسنجی اتصال به اکانت...**", parse_mode="Markdown")
 
-    obs = subprocess.run(["rclone", "obscure", acc_pass], capture_output=True, text=True)
-    obs_pass = obs.stdout.strip() if obs.returncode == 0 else acc_pass
-
-    subprocess.run(["rclone", "config", "create", remote_name, srv_type, f"user={acc_user}", f"pass={obs_pass}"], capture_output=True, text=True)
+    # ساخت ریموت به صورت مستقیم و استاندارد با پارامترهای تفکیک‌شده
+    subprocess.run(
+        ["rclone", "config", "create", remote_name, srv_type, "user", acc_user, "pass", acc_pass],
+        capture_output=True, text=True
+    )
 
     res = subprocess.run(["rclone", "lsd", f"{remote_name}:"], capture_output=True, text=True)
 
@@ -317,7 +318,7 @@ async def get_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "remote": remote_name,
             "type": srv_type,
             "user": acc_user,
-            "pass": obs_pass,
+            "pass": acc_pass,
             "path": f"{remote_name}:/"
         }
         user_info['active_acc'] = acc_name
@@ -496,5 +497,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
 
-    print("🚀 ربات به صورت پایدار و ۱۰۰٪ آنلاین روشن شد...")
+    print("🚀 ربات با دستورات تصحیح شده Rclone فعال شد...")
     app.run_polling()
