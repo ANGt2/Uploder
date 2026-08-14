@@ -12,14 +12,11 @@ import asyncio
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# ---------------------------------------------------------
 ADMIN_ID = 5927935256
 DATA_FILE = "users_data.json"
 TOKEN = "8665274076:AAH1b3FPtmYbZIwaMdpVMYbC63LLA3QViU0"
-# ---------------------------------------------------------
 
 GET_NAME, GET_TYPE, GET_USER, GET_PASS = range(4)
-
 USER_QUEUES = {}
 USER_TASKS = {}
 
@@ -38,7 +35,6 @@ def save_data_local(data):
 
 USERS_DATA = load_data()
 
-# بازسازی کانفیگ‌های Rclone از روی دیتابیس
 def rebuild_rclone_configs():
     for uid, udata in USERS_DATA.items():
         for acc_name, acc_info in udata.get("accounts", {}).items():
@@ -47,38 +43,26 @@ def rebuild_rclone_configs():
             user = acc_info.get("user")
             pwd = acc_info.get("pass")
             if r_name and user and pwd:
-                subprocess.run(
-                    ["rclone", "config", "create", r_name, s_type, f"user={user}", f"pass={pwd}"],
-                    capture_output=True, text=True
-                )
+                subprocess.run(["rclone", "config", "create", r_name, s_type, f"user={user}", f"pass={pwd}"], capture_output=True, text=True)
 
-# بکاپ ابری روی تلگرام ادمین
-async def sync_data_to_telegram(context: ContextTypes.DEFAULT_TYPE):
+async def manual_backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_data_local(USERS_DATA)
-    try:
-        with open(DATA_FILE, "rb") as f:
-            msg = await context.bot.send_document(
-                chat_id=ADMIN_ID,
-                document=f,
-                caption="💾 **نسخه پشتیبان پایگاه داده ربات (همگام‌سازی خودکار)**",
-                parse_mode="Markdown",
-                disable_notification=True
-            )
-            await context.bot.pin_chat_message(chat_id=ADMIN_ID, message_id=msg.message_id, disable_notification=True)
-    except Exception as e:
-        logging.error(f"Error syncing data to TG: {e}")
+    with open(DATA_FILE, "rb") as f:
+        await context.bot.send_document(chat_id=ADMIN_ID, document=f, caption="💾 بکاپ تنظیمات و اکانت‌ها")
 
-# بازیابی خودکار داده‌ها در لحظه روشن شدن ربات
 async def restore_data_from_telegram(app):
     global USERS_DATA
     try:
         chat = await app.bot.get_chat(ADMIN_ID)
-        if chat.pinned_message and chat.pinned_message.document:
-            tg_file = await chat.pinned_message.document.get_file()
-            await tg_file.download_to_drive(DATA_FILE)
-            USERS_DATA = load_data()
-            rebuild_rclone_configs()
-            logging.info("🎉 Database and Rclone configs successfully restored from Telegram cloud!")
+        # جستجوی فایل بکاپ در تاریخچه (آخرین پیام حاوی فایل)
+        async for msg in app.bot.get_chat_history(ADMIN_ID, limit=5):
+            if msg.document and "بکاپ تنظیمات" in (msg.caption or ""):
+                tg_file = await msg.document.get_file()
+                await tg_file.download_to_drive(DATA_FILE)
+                USERS_DATA = load_data()
+                rebuild_rclone_configs()
+                logging.info("🎉 Database restored successfully!")
+                break
     except Exception as e:
         logging.error(f"Restore check error: {e}")
 
@@ -86,9 +70,6 @@ def get_user_accounts(user_id):
     str_id = str(user_id)
     if str_id not in USERS_DATA:
         USERS_DATA[str_id] = {"accounts": {}, "active_acc": None, "upload_mode": False}
-        save_data_local(USERS_DATA)
-    if "upload_mode" not in USERS_DATA[str_id]:
-        USERS_DATA[str_id]["upload_mode"] = False
         save_data_local(USERS_DATA)
     return USERS_DATA[str_id]
 
@@ -104,52 +85,21 @@ async def safe_send_text(context: ContextTypes.DEFAULT_TYPE, chat_id: int, text:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_info = get_user_accounts(user_id)
-
     is_upload_on = user_info.get("upload_mode", False)
-    active_acc = user_info.get("active_acc") or "❌ هیچ اکانتی فعال نیست"
-
-    upload_status = "🟢 روشن (آماده دریافت تکی یا گروهی)" if is_upload_on else "🔴 خاموش"
-    upload_btn_text = "⏹ توقف فاز آپلود" if is_upload_on else "🚀 شروع فاز آپلود فایل"
+    active_acc = user_info.get("active_acc") or "❌ فعال نیست"
 
     keyboard = [
-        [InlineKeyboardButton(upload_btn_text, callback_data="toggle_upload")],
+        [InlineKeyboardButton("⏹ توقف" if is_upload_on else "🚀 شروع فاز آپلود", callback_data="toggle_upload")],
         [InlineKeyboardButton("➕ افزودن اکانت", callback_data="add_account"), InlineKeyboardButton("📊 آمار حافظه", callback_data="storage_stats")],
-        [InlineKeyboardButton("🔄 تغییر اکانت فعال", callback_data="change_account"), InlineKeyboardButton("🗑 حذف اکانت", callback_data="delete_account_user")],
+        [InlineKeyboardButton("🔄 تغییر اکانت", callback_data="change_account"), InlineKeyboardButton("🗑 حذف اکانت", callback_data="delete_account_user")],
         [InlineKeyboardButton("💎 وضعیت حساب", callback_data="user_status")]
     ]
-
-    text = (
-        "✨ **سیستم مدیریت هوشمند آپلود ابری پیشگام** ✨\n"
-        "──────────────────────────────\n"
-        f"🎯 **اکانت مقصد فعال:** `{active_acc}`\n"
-        f"⚡ **وضعیت آپلود:** {upload_status}\n"
-        "──────────────────────────────\n"
-        "👇 برای شروع عملیات گزینه‌ای را انتخاب کنید:"
-    )
-
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    text = f"✨ **سیستم آپلود ابری**\n🎯 **اکانت فعال:** `{active_acc}`\n⚡ **وضعیت:** {'🟢 روشن' if is_upload_on else '🔴 خاموش'}"
+    
     if update.callback_query:
-        await update.callback_query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+        await update.callback_query.edit_message_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
-        await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
-
-async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ شما دسترسی به پنل مدیریت را ندارید.")
-        return
-
-    total_users = len(USERS_DATA)
-    keyboard = [
-        [InlineKeyboardButton("📊 وضعیت سخت‌افزار سرور", callback_data="server_status")],
-        [InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="back_to_main")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        "👑 **پنل فرماندهی ادمین**\n"
-        "────────────────────\n"
-        f"👥 **تعداد کاربران ثبت‌شده:** `{total_users}` نفر",
-        parse_mode="Markdown", reply_markup=reply_markup
-    )
+        await update.message.reply_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -160,152 +110,70 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "back_to_main":
         await start(update, context)
-
     elif data == "toggle_upload":
-        if not user_info.get("active_acc"):
-            kb = InlineKeyboardMarkup([[InlineKeyboardButton("➕ افزودن اکانت", callback_data="add_account")]])
-            await query.edit_message_text("⚠️ **خطا:** ابتدا باید یک اکانت اضافه و فعال کنید.", reply_markup=kb)
-            return
-
         user_info["upload_mode"] = not user_info.get("upload_mode", False)
-        await sync_data_to_telegram(context)
+        save_data_local(USERS_DATA)
         await start(update, context)
-
     elif data == "storage_stats":
         active_acc = user_info.get("active_acc")
-        if not active_acc or active_acc not in user_info.get("accounts", {}):
-            kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]])
-            await query.edit_message_text("❌ هیچ اکانت فعالی برای دریافت آمار انتخاب نشده است.", reply_markup=kb)
+        if not active_acc:
+            await query.edit_message_text("❌ اکانت فعالی انتخاب نشده.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]]))
             return
-
-        await query.edit_message_text("⏳ **در حال محاسبه حجم مصرفی...**", parse_mode="Markdown")
+        await query.edit_message_text("⏳ در حال محاسبه حجم...")
         remote_name = user_info["accounts"][active_acc]["remote"]
         res = subprocess.run(["rclone", "size", "--json", f"{remote_name}:"], capture_output=True, text=True)
-
         try:
             stats = json.loads(res.stdout)
-            bytes_used = stats.get('bytes', 0)
-            count = stats.get('count', 0)
-            size_gb = round(bytes_used / (1024 ** 3), 2)
-            size_mb = round(bytes_used / (1024 ** 2), 2)
-            size_text = f"`{size_gb} GB` ({size_mb} MB)" if size_gb >= 0.1 else f"`{size_mb} MB`"
-
-            text = (
-                f"📊 **آمار لحظه‌ای اکانت:** `{active_acc}`\n"
-                "──────────────────────\n"
-                f"📁 **تعداد فایل‌ها:** `{count}` عدد\n"
-                f"💾 **فضای مصرف‌شده:** {size_text}\n"
-                "──────────────────────"
-            )
-        except Exception:
-            text = "❌ خطایی در خواندن اطلاعات رخ داد."
-
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
-        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
-
+            text = f"📊 **آمار:**\n📁 فایل‌ها: `{stats.get('count', 0)}`\n💾 حجم: `{round(stats.get('bytes', 0)/(1024**3), 2)} GB`"
+        except:
+            text = "❌ خطا در دریافت آمار."
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]]))
+    
     elif data == "change_account":
         accs = user_info.get("accounts", {})
         if not accs:
-            kb = InlineKeyboardMarkup([[InlineKeyboardButton("➕ افزودن اکانت", callback_data="add_account")], [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]])
-            await query.edit_message_text("❌ هیچ اکانتی یافت نشد.", reply_markup=kb)
+            await query.edit_message_text("❌ اکانتی یافت نشد.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]]))
             return
-
-        keyboard = []
-        active = user_info.get("active_acc")
-        for name in accs.keys():
-            label = f"✨ {name} (فعال)" if name == active else f"🔹 {name}"
-            keyboard.append([InlineKeyboardButton(label, callback_data=f"setacc_{name}")])
+        keyboard = [[InlineKeyboardButton(f"{'✨ ' if name == user_info.get('active_acc') else ''}{name}", callback_data=f"setacc_{name}")] for name in accs.keys()]
         keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")])
-        await query.edit_message_text("⚙️ **یکی از اکانت‌های زیر را جهت آپلود فعال کنید:**", reply_markup=InlineKeyboardMarkup(keyboard))
-
+        await query.edit_message_text("⚙️ **انتخاب اکانت فعال:**", reply_markup=InlineKeyboardMarkup(keyboard))
+    
     elif data.startswith("setacc_"):
-        acc_name = data.replace("setacc_", "")
-        user_info['active_acc'] = acc_name
-        await sync_data_to_telegram(context)
+        user_info['active_acc'] = data.replace("setacc_", "")
+        save_data_local(USERS_DATA)
         await start(update, context)
-
-    elif data == "delete_account_user":
-        accs = user_info.get("accounts", {})
-        if not accs:
-            kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]])
-            await query.edit_message_text("❌ اکانتی برای حذف وجود ندارد.", reply_markup=kb)
-            return
-
-        keyboard = []
-        for name in accs.keys():
-            keyboard.append([InlineKeyboardButton(f"🗑 حذف {name}", callback_data=f"delacc_{name}")])
-        keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")])
-        await query.edit_message_text("⚠️ **انتخاب اکانت جهت حذف دائمی:**", reply_markup=InlineKeyboardMarkup(keyboard))
-
+    
     elif data.startswith("delacc_"):
         acc_name = data.replace("delacc_", "")
-        acc_info = user_info["accounts"].get(acc_name)
-        if acc_info:
-            subprocess.run(["rclone", "config", "delete", acc_info["remote"]], capture_output=True, text=True)
-            del user_info["accounts"][acc_name]
-            if user_info.get("active_acc") == acc_name:
-                user_info["active_acc"] = list(user_info["accounts"].keys())[0] if user_info["accounts"] else None
-            await sync_data_to_telegram(context)
-
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
-        await query.edit_message_text(f"🗑 اکانت **{acc_name}** با موفقیت حذف گردید.", parse_mode="Markdown", reply_markup=kb)
-
-    elif data == "user_status":
-        accs_count = len(user_info.get("accounts", {}))
-        active = user_info.get("active_acc") or "هیچ‌کدام"
-        mode_str = "🟢 روشن" if user_info.get("upload_mode") else "🔴 خاموش"
-        text = (
-            "💎 **شناسنامه حساب کاربری شما**\n"
-            "──────────────────\n"
-            f"🆔 **آیدی تلگرام:** `{user_id}`\n"
-            f"📂 **تعداد کل اکانت‌ها:** `{accs_count}`\n"
-            f"🎯 **اکانت فعال:** `{active}`\n"
-            f"⚡ **وضعیت فاز آپلود:** {mode_str}"
-        )
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]])
-        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
-
-    elif data == "server_status":
-        if update.effective_user.id != ADMIN_ID: return
-        total, used, free = shutil.disk_usage("/")
-        text = (
-            "💻 **وضعیت سخت‌افزاری سرور**\n"
-            "──────────────────\n"
-            f"🟢 **حافظه آزاد:** `{round(free/(1024**3), 2)} GB`\n"
-            f"🔴 **حافظه مصرف‌شده:** `{round(used/(1024**3), 2)} GB`\n"
-            f"📦 **حافظه کل سیستم:** `{round(total/(1024**3), 2)} GB`"
-        )
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]])
-        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
+        subprocess.run(["rclone", "config", "delete", user_info["accounts"][acc_name]["remote"]], capture_output=True, text=True)
+        del user_info["accounts"][acc_name]
+        save_data_local(USERS_DATA)
+        await start(update, context)
+    
+    elif data == "delete_account_user":
+        keyboard = [[InlineKeyboardButton(f"🗑 {name}", callback_data=f"delacc_{name}")] for name in user_info.get("accounts", {}).keys()]
+        keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")])
+        await query.edit_message_text("⚠️ **حذف اکانت:**", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def start_add_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ انصراف", callback_data="cancel_conv")]])
-    await query.edit_message_text("📝 **مرحله ۱ از ۴:** یک عنوان اختصاصی برای این اکانت بنویسید (مثلاً: `مگای شخصی`):", parse_mode="Markdown", reply_markup=kb)
+    await query.edit_message_text("📝 نام اکانت را بنویسید:")
     return GET_NAME
 
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['new_acc_name'] = update.message.text.strip()
-    keyboard = [
-        [InlineKeyboardButton("☁️ Mega (مگا)", callback_data="type_mega"), InlineKeyboardButton("📦 TeraBox (تراباکس)", callback_data="type_terabox")],
-        [InlineKeyboardButton("❌ انصراف", callback_data="cancel_conv")]
-    ]
-    await update.message.reply_text("🌐 **مرحله ۲ از ۴:** سرویس ابری مورد نظر را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text("🌐 نوع اکانت (mega/terabox):")
     return GET_TYPE
 
 async def get_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    context.user_data['new_acc_type'] = "mega" if query.data == "type_mega" else "terabox"
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ انصراف", callback_data="cancel_conv")]])
-    await query.edit_message_text("📧 **مرحله ۳ از ۴:** ایمیل یا نام‌کاربری حساب را وارد کنید:", reply_markup=kb)
+    context.user_data['new_acc_type'] = update.message.text.strip()
+    await update.message.reply_text("📧 ایمیل یا نام‌کاربری:")
     return GET_USER
 
 async def get_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['new_acc_user'] = update.message.text.strip()
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ انصراف", callback_data="cancel_conv")]])
-    await update.message.reply_text("🔑 **مرحله ۴ از ۴:** رمز عبور (Password) حساب را وارد کنید:", reply_markup=kb)
+    await update.message.reply_text("🔑 رمز عبور:")
     return GET_PASS
 
 async def get_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -315,185 +183,56 @@ async def get_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
     acc_user = context.user_data['new_acc_user']
     user_id = str(update.effective_user.id)
     user_info = get_user_accounts(user_id)
-
     remote_name = f"u{user_id}_{len(user_info['accounts']) + 1}"
-    msg = await update.message.reply_text("⚡ **در حال بررسی اکانت...**", parse_mode="Markdown")
-
-    obs = subprocess.run(["rclone", "obscure", acc_pass], capture_output=True, text=True)
-    obs_pass = obs.stdout.strip() if obs.returncode == 0 else acc_pass
-
-    subprocess.run(["rclone", "config", "create", remote_name, srv_type, f"user={acc_user}", f"pass={obs_pass}"], capture_output=True, text=True)
-
-    res = subprocess.run(["rclone", "lsd", f"{remote_name}:"], capture_output=True, text=True)
-
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
-
-    if res.returncode == 0:
-        user_info['accounts'][acc_name] = {
-            "remote": remote_name,
-            "type": srv_type,
-            "user": acc_user,
-            "pass": obs_pass,
-            "path": f"{remote_name}:/"
-        }
-        user_info['active_acc'] = acc_name
-        await sync_data_to_telegram(context)
-        await msg.edit_text(f"🎉 **تبریک!** اکانت **{acc_name}** با موفقیت اضافه و تایید شد.", parse_mode="Markdown", reply_markup=kb)
-    else:
-        subprocess.run(["rclone", "config", "delete", remote_name], capture_output=True, text=True)
-        err = res.stderr.strip() if res.stderr else res.stdout.strip()
-        await msg.edit_text(f"❌ **اتصال ناموفق بود!**\n\n🔍 **پاسخ سرور:**\n`{err}`", parse_mode="Markdown", reply_markup=kb)
-    return ConversationHandler.END
-
-async def cancel_conv(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await start(update, context)
+    
+    subprocess.run(["rclone", "config", "create", remote_name, srv_type, f"user={acc_user}", f"pass={acc_pass}"], capture_output=True, text=True)
+    user_info['accounts'][acc_name] = {"remote": remote_name, "type": srv_type, "user": acc_user, "pass": acc_pass, "path": f"{remote_name}:/"}
+    user_info['active_acc'] = acc_name
+    save_data_local(USERS_DATA)
+    await update.message.reply_text("🎉 اکانت اضافه شد.")
     return ConversationHandler.END
 
 async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.sleep(2.5)
-
     items = USER_QUEUES.pop(user_id, [])
     USER_TASKS.pop(user_id, None)
-
-    if not items:
-        return
-
+    if not items: return
+    
     user_info = get_user_accounts(user_id)
     active_acc = user_info.get("active_acc")
-    if not active_acc or active_acc not in user_info.get("accounts", {}):
-        await context.bot.send_message(chat_id=int(user_id), text="❌ اکانت فعالی برای آپلود یافت نشد.")
-        return
-
     target = user_info["accounts"][active_acc]["path"]
-    remote_name = user_info["accounts"][active_acc]["remote"]
-
-    count = len(items)
-    batch_dir = f"./temp_batch_{user_id}_{int(asyncio.get_event_loop().time())}"
+    
+    batch_dir = f"./batch_{user_id}"
     os.makedirs(batch_dir, exist_ok=True)
-
-    status_msg = await context.bot.send_message(
-        chat_id=int(user_id),
-        text=f"⚡ دریافت {count} فایل آغاز شد..."
-    )
-
-    downloaded_files = []
-    total_bytes = 0
-
-    try:
-        for idx, item in enumerate(items, 1):
-            tg_file, original_name = item
-            clean_name = f"f_{idx}_{original_name}"
-            save_path = os.path.join(batch_dir, clean_name)
-
-            await tg_file.download_to_drive(save_path)
-            total_bytes += os.path.getsize(save_path)
-            downloaded_files.append(clean_name)
-
-        total_mb = round(total_bytes / (1024 * 1024), 2)
-        try:
-            await status_msg.edit_text(f"☁️ انتقال {count} فایل ({total_mb} MB) به {active_acc}...")
-        except Exception:
-            pass
-
-        upload_cmd = [
-            "rclone", "copy", batch_dir, target,
-            "--transfers", "4",
-            "--buffer-size", "64M",
-            "--fast-list"
-        ]
-        res = subprocess.run(upload_cmd, capture_output=True, text=True)
-
-        if res.returncode == 0:
-            try:
-                await status_msg.delete()
-            except Exception:
-                pass
-
-            report = f"✅ آپلود {count} فایل با موفقیت انجام شد ({total_mb} MB):\n\n"
-            for fname in downloaded_files:
-                link_cmd = ["rclone", "link", f"{remote_name}:{fname}"]
-                l_res = subprocess.run(link_cmd, capture_output=True, text=True)
-                url = l_res.stdout.strip()
-                if url.startswith("http"):
-                    report += f"📄 {fname}\n🔗 {url}\n\n"
-                else:
-                    report += f"📄 {fname} (ذخیره شد)\n\n"
-
-            report += "🟢 فاز آپلود فعال است."
-            await safe_send_text(context, int(user_id), report)
-
-        else:
-            err_msg = res.stderr.strip()[:200]
-            await status_msg.edit_text(f"❌ خطا هنگام انتقال:\n{err_msg}")
-
-    except Exception as e:
-        clean_err = str(e)[:200]
-        await context.bot.send_message(chat_id=int(user_id), text=f"❌ خطا: {clean_err}")
-    finally:
-        if os.path.exists(batch_dir):
-            shutil.rmtree(batch_dir)
+    msg = await context.bot.send_message(chat_id=int(user_id), text="⚡ در حال آپلود...")
+    
+    for tg_file, fname in items:
+        await tg_file.download_to_drive(os.path.join(batch_dir, fname))
+    
+    subprocess.run(["rclone", "copy", batch_dir, target, "--transfers", "4", "--buffer-size", "64M"], capture_output=True, text=True)
+    await msg.delete()
+    await safe_send_text(context, int(user_id), "✅ آپلود تمام شد.")
+    shutil.rmtree(batch_dir)
 
 async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     user_info = get_user_accounts(user_id)
-
-    if not user_info.get('upload_mode', False):
-        await update.message.reply_text("⚠️ فاز آپلود خاموش است! /start را بزنید و فاز آپلود را روشن کنید.")
-        return
-
-    tg_file = None
-    file_name = "file"
-
-    if update.message.document:
-        tg_file = await update.message.document.get_file()
-        file_name = update.message.document.file_name or f"doc_{update.message.document.file_id[:6]}"
-    elif update.message.video:
-        tg_file = await update.message.video.get_file()
-        file_name = update.message.video.file_name or f"video_{update.message.video.file_id[:6]}.mp4"
-    elif update.message.audio:
-        tg_file = await update.message.audio.get_file()
-        file_name = update.message.audio.file_name or f"audio_{update.message.audio.file_id[:6]}.mp3"
-    elif update.message.photo:
-        tg_file = await update.message.photo[-1].get_file()
-        file_name = f"photo_{update.message.photo[-1].file_id[:6]}.jpg"
-    else:
-        return
-
-    if user_id not in USER_QUEUES:
-        USER_QUEUES[user_id] = []
-
-    USER_QUEUES[user_id].append((tg_file, file_name))
-
-    if user_id in USER_TASKS and not USER_TASKS[user_id].done():
-        USER_TASKS[user_id].cancel()
-
+    if not user_info.get('upload_mode', False): return
+    
+    tg_file = await (update.message.document or update.message.video or update.message.audio or update.message.photo[-1]).get_file()
+    fname = getattr(update.message.document or update.message.video or update.message.audio, 'file_name', f"file_{update.message.date.timestamp()}")
+    
+    if user_id not in USER_QUEUES: USER_QUEUES[user_id] = []
+    USER_QUEUES[user_id].append((tg_file, fname))
+    if user_id in USER_TASKS and not USER_TASKS[user_id].done(): USER_TASKS[user_id].cancel()
     USER_TASKS[user_id] = asyncio.create_task(process_batch_queue(user_id, context))
 
-async def post_init(application):
-    await restore_data_from_telegram(application)
-
 if __name__ == '__main__':
-    app = ApplicationBuilder().token(TOKEN).post_init(post_init).read_timeout(120).write_timeout(120).build()
-
-    conv_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(start_add_account, pattern="^add_account$")],
-        states={
-            GET_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
-            GET_TYPE: [CallbackQueryHandler(get_type, pattern="^type_")],
-            GET_USER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_user)],
-            GET_PASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_pass)],
-        },
-        fallbacks=[
-            CommandHandler('cancel', cancel_conv),
-            CallbackQueryHandler(cancel_conv, pattern="^cancel_conv$")
-        ]
-    )
-
+    app = ApplicationBuilder().token(TOKEN).post_init(lambda app: restore_data_from_telegram(app)).build()
+    # (Handlers remain same...)
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("admin", admin_panel))
-    app.add_handler(conv_handler)
+    app.add_handler(CommandHandler("backup", manual_backup))
+    app.add_handler(ConversationHandler(entry_points=[CallbackQueryHandler(start_add_account, pattern="^add_account$")], states={GET_NAME: [MessageHandler(filters.TEXT, get_name)], GET_TYPE: [MessageHandler(filters.TEXT, get_type)], GET_USER: [MessageHandler(filters.TEXT, get_user)], GET_PASS: [MessageHandler(filters.TEXT, get_pass)]}, fallbacks=[CommandHandler('cancel', lambda u,c: start(u,c))]))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
-
-    print("🚀 ربات با قابلیت همگام‌سازی ابری و دیتابیس دائمی فعال شد...")
     app.run_polling()
