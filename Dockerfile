@@ -1,6 +1,5 @@
 FROM alpine:3.19
 
-# نصب پایتون، Rclone و پیش‌نیازها
 RUN apk add --no-cache \
     python3 \
     py3-pip \
@@ -20,16 +19,16 @@ RUN ARCH=$(uname -m) && \
 
 WORKDIR /app
 
-# نصب کتابخانه‌های پایتون
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt --break-system-packages
 
 COPY . .
 
-# اسکریپت اجرای همزمان سرور تلگرام و ربات
+# اجرای ایمن سرور محلی با آرگومان‌های کامل
 RUN echo '#!/bin/bash' > /app/entrypoint.sh && \
-    echo '/usr/local/bin/telegram-bot-api --local --http-port=8081 --dir=/app/tg-data --temp-dir=/app/tg-temp &' >> /app/entrypoint.sh && \
-    echo 'sleep 2' >> /app/entrypoint.sh && \
+    echo 'mkdir -p /app/tg-data /app/tg-temp' >> /app/entrypoint.sh && \
+    echo '/usr/local/bin/telegram-bot-api --api-id=6 --api-hash=eb06d4abfb49dc3eeb1aeb9890f1 --local --http-port=8081 --dir=/app/tg-data --temp-dir=/app/tg-temp &' >> /app/entrypoint.sh && \
+    echo 'sleep 4' >> /app/entrypoint.sh && \
     echo 'python3 bot.py' >> /app/entrypoint.sh && \
     chmod +x /app/entrypoint.sh
 
