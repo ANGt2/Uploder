@@ -20,6 +20,10 @@ TOKEN = "8665274076:AAH1b3FPtmYbZIwaMdpVMYbC63LLA3QViU0"
 
 GET_NAME, GET_TYPE, GET_USER, GET_PASS = range(4)
 
+# صف و تسک‌های مربوط به بافر آلبوم کاربران
+USER_QUEUES = {}
+USER_TASKS = {}
+
 def load_data():
     if os.path.exists(DATA_FILE):
         try:
@@ -52,22 +56,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_upload_on = user_info.get("upload_mode", False)
     active_acc = user_info.get("active_acc") or "❌ هیچ اکانتی فعال نیست"
 
-    upload_status = "🟢 روشن (آماده دریافت پیوسته فایل‌ها)" if is_upload_on else "🔴 خاموش"
+    upload_status = "🟢 روشن (آماده دریافت تکی یا گروهی)" if is_upload_on else "🔴 خاموش"
     upload_btn_text = "⏹ توقف فاز آپلود" if is_upload_on else "🚀 شروع فاز آپلود فایل"
 
     keyboard = [
         [InlineKeyboardButton(upload_btn_text, callback_data="toggle_upload")],
-        [InlineKeyboardButton("➕ افزودن اکانت ابری", callback_data="add_account"), InlineKeyboardButton("🔄 تغییر اکانت فعال", callback_data="change_account")],
-        [InlineKeyboardButton("🗑 حذف اکانت‌های من", callback_data="delete_account_user"), InlineKeyboardButton("📊 وضعیت حساب من", callback_data="user_status")]
+        [InlineKeyboardButton("➕ افزودن اکانت", callback_data="add_account"), InlineKeyboardButton("📊 آمار حافظه", callback_data="storage_stats")],
+        [InlineKeyboardButton("🔄 تغییر اکانت فعال", callback_data="change_account"), InlineKeyboardButton("🗑 حذف اکانت", callback_data="delete_account_user")],
+        [InlineKeyboardButton("💎 وضعیت حساب", callback_data="user_status")]
     ]
 
     text = (
         "✨ **سیستم مدیریت هوشمند آپلود ابری پیشگام** ✨\n"
         "──────────────────────────────\n"
-        f"🎯 **اکانت مقصد فعلی:** `{active_acc}`\n"
+        f"🎯 **اکانت مقصد فعال:** `{active_acc}`\n"
         f"⚡ **وضعیت آپلود:** {upload_status}\n"
         "──────────────────────────────\n"
-        "👇 برای کنترل عملیات گزینه‌ای را انتخاب کنید:"
+        "👇 برای شروع عملیات گزینه‌ای را انتخاب کنید:"
     )
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -83,7 +88,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     total_users = len(USERS_DATA)
     keyboard = [
-        [InlineKeyboardButton("📊 وضعیت حافظه سرور", callback_data="server_status")],
+        [InlineKeyboardButton("📊 وضعیت سخت‌افزار سرور", callback_data="server_status")],
         [InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="back_to_main")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -107,12 +112,44 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "toggle_upload":
         if not user_info.get("active_acc"):
             kb = InlineKeyboardMarkup([[InlineKeyboardButton("➕ افزودن اکانت", callback_data="add_account")]])
-            await query.edit_message_text("⚠️ **خطا:** شما هنوز هیچ اکانتی ثبت نکرده‌اید! ابتدا یک اکانت اضافه کنید.", reply_markup=kb)
+            await query.edit_message_text("⚠️ **خطا:** ابتدا باید یک اکانت اضافه و فعال کنید.", reply_markup=kb)
             return
 
         user_info["upload_mode"] = not user_info.get("upload_mode", False)
         save_data(USERS_DATA)
         await start(update, context)
+
+    elif data == "storage_stats":
+        active_acc = user_info.get("active_acc")
+        if not active_acc or active_acc not in user_info.get("accounts", {}):
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]])
+            await query.edit_message_text("❌ هیچ اکانت فعالی برای دریافت آمار انتخاب نشده است.", reply_markup=kb)
+            return
+
+        await query.edit_message_text("⏳ **در حال استخراج و محاسبه حجم فضای ابری... لطفاً شکیبا باشید.**", parse_mode="Markdown")
+        remote_name = user_info["accounts"][active_acc]["remote"]
+        res = subprocess.run(["rclone", "size", "--json", f"{remote_name}:"], capture_output=True, text=True)
+
+        try:
+            stats = json.loads(res.stdout)
+            bytes_used = stats.get('bytes', 0)
+            count = stats.get('count', 0)
+            size_gb = round(bytes_used / (1024 ** 3), 2)
+            size_mb = round(bytes_used / (1024 ** 2), 2)
+            size_text = f"`{size_gb} GB` ({size_mb} MB)" if size_gb >= 0.1 else f"`{size_mb} MB`"
+
+            text = (
+                f"📊 **آمار لحظه‌ای اکانت:** `{active_acc}`\n"
+                "──────────────────────\n"
+                f"📁 **تعداد فایل‌های ذخیره‌شده:** `{count}` عدد\n"
+                f"💾 **فضای مصرف‌شده:** {size_text}\n"
+                "──────────────────────"
+            )
+        except Exception:
+            text = "❌ خطایی در خواندن اطلاعات از سرور مگا رخ داد."
+
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
 
     elif data == "change_account":
         accs = user_info.get("accounts", {})
@@ -254,57 +291,58 @@ async def cancel_conv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await start(update, context)
     return ConversationHandler.END
 
-async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    user_info = get_user_accounts(user_id)
+# پردازشگر دسته‌ای فایل‌ها (Batch / Album Processor)
+async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
+    await asyncio.sleep(2.0)  # انتظار برای دریافت کامل تمامی آیتم‌های آلبوم
 
-    if not user_info.get('upload_mode', False):
-        await update.message.reply_text("⚠️ فاز آپلود خاموش است! ابتدا دستور /start را بزنید و فاز آپلود را روشن کنید.")
+    items = USER_QUEUES.pop(user_id, [])
+    USER_TASKS.pop(user_id, None)
+
+    if not items:
         return
 
+    user_info = get_user_accounts(user_id)
     active_acc = user_info.get("active_acc")
     if not active_acc or active_acc not in user_info.get("accounts", {}):
-        await update.message.reply_text("❌ اکانت فعالی یافت نشد. لطفاً از منو یک اکانت انتخاب کنید.")
+        await context.bot.send_message(chat_id=int(user_id), text="❌ اکانت فعالی برای آپلود یافت نشد.")
         return
 
     target = user_info["accounts"][active_acc]["path"]
     remote_name = user_info["accounts"][active_acc]["remote"]
 
-    msg = await update.message.reply_text("⚡ **در حال پردازش و انتقال فوق‌سریع...**", parse_mode="Markdown")
+    count = len(items)
+    batch_dir = f"./temp_batch_{user_id}_{int(asyncio.get_event_loop().time())}"
+    os.makedirs(batch_dir, exist_ok=True)
 
-    file_path = None
+    status_msg = await context.bot.send_message(
+        chat_id=int(user_id),
+        text=f"⚡ **در حال دریافت و آماده‌سازی {count} فایل جهت آپلود توربو...**",
+        parse_mode="Markdown"
+    )
+
+    downloaded_files = []
+    total_bytes = 0
+
     try:
-        tg_file = None
-        file_name = "file"
-        file_icon = "📄"
+        for idx, item in enumerate(items, 1):
+            tg_file, original_name = item
+            ext = os.path.splitext(original_name)[1]
+            clean_name = f"file_{idx}_{original_name}" if not original_name.startswith("file_") else original_name
+            save_path = os.path.join(batch_dir, clean_name)
 
-        if update.message.document:
-            tg_file = await update.message.document.get_file()
-            file_name = update.message.document.file_name or f"doc_{update.message.document.file_id[:6]}"
-            file_icon = "📑"
-        elif update.message.video:
-            tg_file = await update.message.video.get_file()
-            file_name = update.message.video.file_name or f"video_{update.message.video.file_id[:6]}.mp4"
-            file_icon = "🎬"
-        elif update.message.audio:
-            tg_file = await update.message.audio.get_file()
-            file_name = update.message.audio.file_name or f"audio_{update.message.audio.file_id[:6]}.mp3"
-            file_icon = "🎵"
-        elif update.message.photo:
-            tg_file = await update.message.photo[-1].get_file()
-            file_name = f"photo_{update.message.photo[-1].file_id[:6]}.jpg"
-            file_icon = "🖼"
-        else:
-            return
+            await tg_file.download_to_drive(save_path)
+            total_bytes += os.path.getsize(save_path)
+            downloaded_files.append(clean_name)
 
-        file_path = f"./{file_name}"
-        await tg_file.download_to_drive(file_path)
+        total_mb = round(total_bytes / (1024 * 1024), 2)
+        await status_msg.edit_text(
+            f"☁️ **در حال انتقال دسته‌ای {count} فایل ({total_mb} MB) به سرور ابری...**\n"
+            f"🎯 مقصد: `{active_acc}`",
+            parse_mode="Markdown"
+        )
 
-        file_size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2)
-
-        # اجرای دستور انتقال توربو Rclone بدون تاخیر مصنوعی
         upload_cmd = [
-            "rclone", "copy", file_path, target,
+            "rclone", "copy", batch_dir, target,
             "--transfers", "4",
             "--buffer-size", "64M",
             "--mega-chunk-size", "32M",
@@ -313,31 +351,73 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
         res = subprocess.run(upload_cmd, capture_output=True, text=True)
 
         if res.returncode == 0:
-            link_cmd = ["rclone", "link", f"{remote_name}:{file_name}"]
-            link_res = subprocess.run(link_cmd, capture_output=True, text=True)
-            dl_link = link_res.stdout.strip() if link_res.returncode == 0 else "لینک عمومی مستقیم یافت نشد."
+            links_text = []
+            for fname in downloaded_files:
+                link_cmd = ["rclone", "link", f"{remote_name}:{fname}"]
+                l_res = subprocess.run(link_cmd, capture_output=True, text=True)
+                url = l_res.stdout.strip()
+                if url.startswith("http"):
+                    links_text.append(f"🔹 **{fname}**:\n`{url}`")
+                else:
+                    links_text.append(f"🔹 **{fname}**: ذخیره شد.")
 
-            kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔗 باز کردن لینک دانلود مستقیم", url=dl_link)]]) if "http" in dl_link else None
-
-            await msg.edit_text(
-                f"⚡ **آپلود موشکی با موفقیت انجام شد!**\n"
+            all_links = "\n\n".join(links_text)
+            await status_msg.edit_text(
+                f"✅ **تمامی {count} فایل با موفقیت کامل آپلود شدند!**\n"
                 f"──────────────────\n"
-                f"{file_icon} **فایل:** `{file_name}`\n"
-                f"📦 **حجم:** `{file_size_mb} MB`\n"
-                f"🎯 **مقصد:** `{active_acc}`\n"
+                f"📦 **حجم کل بسته:** `{total_mb} MB`\n"
+                f"🎯 **اکانت مقصد:** `{active_acc}`\n"
                 f"──────────────────\n"
-                f"🔗 **لینک:**\n`{dl_link}`\n\n"
-                f"🟢 **آماده دریافت فایل بعدی...**",
-                parse_mode="Markdown", reply_markup=kb
+                f"{all_links}\n\n"
+                f"🟢 **فاز آپلود فعال است؛ بسته بعدی را ارسال کنید.**",
+                parse_mode="Markdown"
             )
         else:
-            await msg.edit_text(f"❌ خطا هنگام انتقال:\n`{res.stderr.strip()}`", parse_mode="Markdown")
+            await status_msg.edit_text(f"❌ خطا هنگام انتقال:\n`{res.stderr.strip()}`", parse_mode="Markdown")
 
     except Exception as e:
-        await msg.edit_text(f"❌ خطا: {str(e)}")
+        await status_msg.edit_text(f"❌ خطا در پردازش: {str(e)}")
     finally:
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
+        if os.path.exists(batch_dir):
+            shutil.rmtree(batch_dir)
+
+# شنونده تمامی فایل‌های ارسالی
+async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    user_info = get_user_accounts(user_id)
+
+    if not user_info.get('upload_mode', False):
+        await update.message.reply_text("⚠️ فاز آپلود خاموش است! ابتدا دستور /start را بزنید و دکمه «🚀 شروع فاز آپلود فایل» را انتخاب کنید.")
+        return
+
+    tg_file = None
+    file_name = "file"
+
+    if update.message.document:
+        tg_file = await update.message.document.get_file()
+        file_name = update.message.document.file_name or f"doc_{update.message.document.file_id[:6]}"
+    elif update.message.video:
+        tg_file = await update.message.video.get_file()
+        file_name = update.message.video.file_name or f"video_{update.message.video.file_id[:6]}.mp4"
+    elif update.message.audio:
+        tg_file = await update.message.audio.get_file()
+        file_name = update.message.audio.file_name or f"audio_{update.message.audio.file_id[:6]}.mp3"
+    elif update.message.photo:
+        tg_file = await update.message.photo[-1].get_file()
+        file_name = f"photo_{update.message.photo[-1].file_id[:6]}.jpg"
+    else:
+        return
+
+    if user_id not in USER_QUEUES:
+        USER_QUEUES[user_id] = []
+
+    USER_QUEUES[user_id].append((tg_file, file_name))
+
+    # ریست کردن تایمر بافر برای گرفتن فایل‌های بعدی آلبوم
+    if user_id in USER_TASKS and not USER_TASKS[user_id].done():
+        USER_TASKS[user_id].cancel()
+
+    USER_TASKS[user_id] = asyncio.create_task(process_batch_queue(user_id, context))
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).read_timeout(120).write_timeout(120).build()
@@ -362,5 +442,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
 
-    print("🚀 ربات با سرعت توربو و بهینه‌سازی کامل روشن شد...")
+    print("🚀 ربات هوشمند با پشتیبانی از آمار حافظه و آپلود دسته‌ای آلبوم فعال شد...")
     app.run_polling()
