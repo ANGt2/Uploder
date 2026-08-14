@@ -231,25 +231,32 @@ async def get_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_info = get_user_accounts(user_id)
     
     remote_name = f"u{user_id}_{len(user_info['accounts']) + 1}"
-    msg = await update.message.reply_text("⚡ **در حال برقراری ارتباط لایو و تست صحت اطلاعات...**")
-    
-    obs_res = subprocess.run(["rclone", "obscure", acc_pass], capture_output=True, text=True)
-    obscured_pass = obs_res.stdout.strip()
-    subprocess.run(["rclone", "config", "create", remote_name, srv_type, f"user={acc_user}", f"pass={obscured_pass}"], capture_output=True, text=True)
-    
-    result = subprocess.run(["rclone", "lsd", f"{remote_name}:"], capture_output=True, text=True)
-    
+    msg = await update.message.reply_text("⚡ **در حال برقراری ارتباط و بررسی اکانت...**", parse_mode="Markdown")
+
+    # تبدیل مستقیم رمز
+    obs = subprocess.run(["rclone", "obscure", acc_pass], capture_output=True, text=True)
+    obs_pass = obs.stdout.strip()
+
+    # ساخت ریموت با فلش مشخص کانفیگ
+    subprocess.run(["rclone", "--config", "/app/rclone.conf", "config", "create", remote_name, srv_type, f"user={acc_user}", f"pass={obs_pass}"], capture_output=True, text=True)
+
+    # تست دسترسی
+    res = subprocess.run(["rclone", "--config", "/app/rclone.conf", "lsd", f"{remote_name}:"], capture_output=True, text=True)
+
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
-    if result.returncode == 0:
+    
+    if res.returncode == 0:
         user_info['accounts'][acc_name] = {"remote": remote_name, "path": f"{remote_name}:/"}
         user_info['active_acc'] = acc_name
         save_data(USERS_DATA)
-        await msg.edit_text(f"🎉 **تبریک!** اکانت **{acc_name}** با موفقیت تایید و فعال گردید.", parse_mode="Markdown", reply_markup=kb)
+        await msg.edit_text(f"🎉 **تبریک!** اکانت **{acc_name}** با موفقیت اضافه و تایید شد.", parse_mode="Markdown", reply_markup=kb)
     else:
-        subprocess.run(["rclone", "config", "delete", remote_name], capture_output=True, text=True)
-        err_msg = result.stderr.strip() if result.stderr else "بدون پاسخ از سرور"
-        await msg.edit_text(f"❌ **اتصال ناموفق بود!**\n\n🔍 **علت:**\n`{err_msg}`", reply_markup=kb, parse_mode="Markdown")
-        
+        subprocess.run(["rclone", "--config", "/app/rclone.conf", "config", "delete", remote_name], capture_output=True, text=True)
+        err = res.stderr.strip() if res.stderr else res.stdout.strip()
+        await msg.edit_text(f"❌ **اتصال ناموفق بود!**
+
+🔍 **پاسخ سیستم:**
+`{err}`", parse_mode="Markdown", reply_markup=kb)
     return ConversationHandler.END
 
 async def cancel_conv(update: Update, context: ContextTypes.DEFAULT_TYPE):
