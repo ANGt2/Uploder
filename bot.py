@@ -38,7 +38,10 @@ USERS_DATA = load_data()
 def get_user_accounts(user_id):
     str_id = str(user_id)
     if str_id not in USERS_DATA:
-        USERS_DATA[str_id] = {"accounts": {}, "active_acc": None}
+        USERS_DATA[str_id] = {"accounts": {}, "active_acc": None, "upload_mode": False}
+        save_data(USERS_DATA)
+    if "upload_mode" not in USERS_DATA[str_id]:
+        USERS_DATA[str_id]["upload_mode"] = False
         save_data(USERS_DATA)
     return USERS_DATA[str_id]
 
@@ -52,11 +55,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_info = get_user_accounts(user_id)
 
-    context.user_data['upload_mode'] = context.user_data.get('upload_mode', False)
+    is_upload_on = user_info.get("upload_mode", False)
     active_acc = user_info.get("active_acc") or "❌ هیچ اکانتی فعال نیست"
 
-    upload_status = "🟢 آماده دریافت فایل" if context.user_data['upload_mode'] else "🔴 غیرفعال"
-    upload_btn_text = "⏹ توقف فاز آپلود" if context.user_data['upload_mode'] else "🚀 شروع فاز آپلود فایل"
+    upload_status = "🟢 روشن (آماده دریافت پیوسته فایل‌ها)" if is_upload_on else "🔴 خاموش"
+    upload_btn_text = "⏹ توقف فاز آپلود" if is_upload_on else "🚀 شروع فاز آپلود فایل"
 
     keyboard = [
         [InlineKeyboardButton(upload_btn_text, callback_data="toggle_upload")],
@@ -68,9 +71,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✨ **سیستم مدیریت هوشمند آپلود ابری پیشگام** ✨\n"
         "──────────────────────────────\n"
         f"🎯 **اکانت مقصد فعلی:** `{active_acc}`\n"
-        f"⚡ **وضعیت سرویس:** {upload_status}\n"
+        f"⚡ **وضعیت آپلود:** {upload_status}\n"
         "──────────────────────────────\n"
-        "👇 برای شروع عملیات یا تغییر تنظیمات، گزینه‌ای را انتخاب کنید:"
+        "👇 برای کنترل عملیات گزینه‌ای را انتخاب کنید:"
     )
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -113,7 +116,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("⚠️ **خطا:** شما هنوز هیچ اکانتی ثبت نکرده‌اید! ابتدا یک اکانت اضافه کنید.", reply_markup=kb)
             return
 
-        context.user_data['upload_mode'] = not context.user_data.get('upload_mode', False)
+        user_info["upload_mode"] = not user_info.get("upload_mode", False)
+        save_data(USERS_DATA)
         await start(update, context)
 
     elif data == "change_account":
@@ -166,12 +170,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "user_status":
         accs_count = len(user_info.get("accounts", {}))
         active = user_info.get("active_acc") or "هیچ‌کدام"
+        mode_str = "🟢 روشن" if user_info.get("upload_mode") else "🔴 خاموش"
         text = (
             "💎 **شناسنامه حساب کاربری شما**\n"
             "──────────────────\n"
             f"🆔 **آیدی تلگرام:** `{user_id}`\n"
             f"📂 **تعداد کل اکانت‌ها:** `{accs_count}`\n"
-            f"🎯 **اکانت فعال:** `{active}`"
+            f"🎯 **اکانت فعال:** `{active}`\n"
+            f"⚡ **وضعیت فاز آپلود:** {mode_str}"
         )
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]])
         await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
@@ -255,16 +261,17 @@ async def cancel_conv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.user_data.get('upload_mode'):
-        await update.message.reply_text("⚠️ ربات در فاز آپلود نیست! ابتدا /start را بزنید و فاز آپلود را روشن کنید.")
-        return
-
     user_id = str(update.effective_user.id)
     user_info = get_user_accounts(user_id)
-    active_acc = user_info.get("active_acc")
 
+    # بررسی وضعیت فاز آپلود دائمی کاربر
+    if not user_info.get('upload_mode', False):
+        await update.message.reply_text("⚠️ فاز آپلود خاموش است! ابتدا دستور /start را بزنید و دکمه «🚀 شروع فاز آپلود فایل» را انتخاب کنید.")
+        return
+
+    active_acc = user_info.get("active_acc")
     if not active_acc or active_acc not in user_info.get("accounts", {}):
-        await update.message.reply_text("❌ اکانت فعالی یافت نشد.")
+        await update.message.reply_text("❌ اکانت فعالی یافت نشد. لطفاً از منو یک اکانت انتخاب کنید.")
         return
 
     target = user_info["accounts"][active_acc]["path"]
@@ -272,6 +279,7 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = await update.message.reply_text("📥 **در حال دریافت فایل از تلگرام...**\n`[░░░░░░░░░░] 0%`", parse_mode="Markdown")
 
+    file_path = None
     try:
         tg_file = None
         file_name = "file"
@@ -279,27 +287,29 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if update.message.document:
             tg_file = await update.message.document.get_file()
-            file_name = update.message.document.file_name or f"doc_{update.message.document.file_id[:5]}"
+            file_name = update.message.document.file_name or f"doc_{update.message.document.file_id[:6]}"
             file_icon = "📑"
         elif update.message.video:
             tg_file = await update.message.video.get_file()
-            file_name = update.message.video.file_name or f"video_{update.message.video.file_id[:5]}.mp4"
+            file_name = update.message.video.file_name or f"video_{update.message.video.file_id[:6]}.mp4"
             file_icon = "🎬"
         elif update.message.audio:
             tg_file = await update.message.audio.get_file()
-            file_name = update.message.audio.file_name or f"audio_{update.message.audio.file_id[:5]}.mp3"
+            file_name = update.message.audio.file_name or f"audio_{update.message.audio.file_id[:6]}.mp3"
             file_icon = "🎵"
         elif update.message.photo:
             tg_file = await update.message.photo[-1].get_file()
-            file_name = f"photo_{update.message.photo[-1].file_id[:5]}.jpg"
+            file_name = f"photo_{update.message.photo[-1].file_id[:6]}.jpg"
             file_icon = "🖼"
+        else:
+            return
 
         file_path = f"./{file_name}"
         await tg_file.download_to_drive(file_path)
 
         file_size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2)
 
-        progress_steps = [20, 45, 75, 95]
+        progress_steps = [25, 60, 85]
         for p in progress_steps:
             bar_str = make_progress_bar(p)
             await msg.edit_text(
@@ -310,7 +320,7 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📊 **پیشرفت:** `{bar_str}`",
                 parse_mode="Markdown"
             )
-            await asyncio.sleep(0.8)
+            await asyncio.sleep(0.6)
 
         res = subprocess.run(["rclone", "copy", file_path, target], capture_output=True, text=True)
 
@@ -323,24 +333,25 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔗 باز کردن لینک دانلود مستقیم", url=dl_link)]]) if "http" in dl_link else None
 
             await msg.edit_text(
-                f"✅ **آپلود با موفقیت کامل انجام شد!**\n"
+                f"✅ **آپلود با موفقیت انجام شد!**\n"
                 f"──────────────────\n"
                 f"{file_icon} **نام فایل:** `{file_name}`\n"
                 f"📦 **حجم فایل:** `{file_size_mb} MB`\n"
                 f"📊 **وضعیت:** `{final_bar}`\n"
                 f"🎯 **مقصد:** `{active_acc}`\n"
                 f"──────────────────\n"
-                f"🔗 **لینک اشتراک‌گذاری:**\n`{dl_link}`",
+                f"🔗 **لینک اشتراک‌گذاری:**\n`{dl_link}`\n\n"
+                f"🟢 **فاز آپلود همچنان روشن است؛ فایل بعدی را بفرستید.**",
                 parse_mode="Markdown", reply_markup=kb
             )
         else:
             await msg.edit_text(f"❌ خطایی هنگام انتقال فایل پیش آمد:\n`{res.stderr.strip()}`", parse_mode="Markdown")
 
-        if os.path.exists(file_path):
-            os.remove(file_path)
-
     except Exception as e:
         await msg.edit_text(f"❌ خطا: {str(e)}")
+    finally:
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).read_timeout(60).write_timeout(60).build()
@@ -365,5 +376,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
 
-    print("🚀 ربات شکیل و حرفه‌ای با انیمیشن آپلود روشن شد...")
+    print("🚀 ربات شکیل با حالت آپلود پیوسته دائمی روشن شد...")
     app.run_polling()
