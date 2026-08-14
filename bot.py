@@ -16,6 +16,8 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 ADMIN_ID = 5927935256
 DATA_FILE = "users_data.json"
 TOKEN = "8665274076:AAH1b3FPtmYbZIwaMdpVMYbC63LLA3QViU0"
+# آدرس سرور محلی دانلود تلگرام
+LOCAL_BOT_API_URL = "http://127.0.0.1:8081/bot"
 # ---------------------------------------------------------
 
 GET_NAME, GET_TYPE, GET_USER, GET_PASS = range(4)
@@ -77,7 +79,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_upload_on = user_info.get("upload_mode", False)
     active_acc = user_info.get("active_acc") or "❌ هیچ اکانتی فعال نیست"
 
-    upload_status = "🟢 روشن (آماده دریافت تکی یا گروهی)" if is_upload_on else "🔴 خاموش"
+    upload_status = "🟢 روشن (آماده دریافت فایل تا ۲ گیگابایت)" if is_upload_on else "🔴 خاموش"
     upload_btn_text = "⏹ توقف فاز آپلود" if is_upload_on else "🚀 شروع فاز آپلود فایل"
 
     keyboard = [
@@ -101,19 +103,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
     else:
         await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
-
-async def manual_backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    save_data(USERS_DATA)
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "rb") as f:
-            await context.bot.send_document(
-                chat_id=ADMIN_ID,
-                document=f,
-                caption="💾 **نسخه پشتیبان پایگاه داده ربات**",
-                parse_mode="Markdown"
-            )
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -290,7 +279,6 @@ async def get_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_info = get_user_accounts(user_id)
     srv_type = context.user_data.get('new_acc_type', 'mega')
 
-    # بررسی ثبت نشدن ایمیل تکراری
     for acc_n, acc_d in user_info.get("accounts", {}).items():
         if acc_d.get("user", "").lower() == input_user.lower() and acc_d.get("type", "") == srv_type:
             kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
@@ -383,6 +371,7 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
             clean_name = f"f_{idx}_{original_name}"
             save_path = os.path.join(batch_dir, clean_name)
 
+            # دانلود مستقیم و پرسرعت تا سقف ۲ گیگابایت از سرور محلی
             await tg_file.download_to_drive(save_path)
             total_bytes += os.path.getsize(save_path)
             downloaded_files.append(clean_name)
@@ -446,7 +435,6 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_file = None
     file_name = f"file_{int(asyncio.get_event_loop().time())}"
 
-    # دریافت تمام رسانه‌ها اعم از گالری، فوروارد، موزیک، ویس و ویدیو مسیج
     if msg.document:
         tg_file = await msg.document.get_file()
         file_name = msg.document.file_name or f"doc_{msg.document.file_id[:6]}"
@@ -482,7 +470,17 @@ async def post_init(application):
     rebuild_rclone_configs()
 
 if __name__ == '__main__':
-    app = ApplicationBuilder().token(TOKEN).post_init(post_init).read_timeout(120).write_timeout(120).build()
+    # پیکربندی ربات برای اتصال به سرور محلی تلگرام جهت دانلود تا سقف ۲ گیگابایت
+    app = (
+        ApplicationBuilder()
+        .token(TOKEN)
+        .base_url(LOCAL_BOT_API_URL)
+        .local_mode(True)
+        .post_init(post_init)
+        .read_timeout(600)
+        .write_timeout(600)
+        .build()
+    )
 
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(start_add_account, pattern="^add_account$")],
@@ -500,10 +498,9 @@ if __name__ == '__main__':
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
-    app.add_handler(CommandHandler("backup", manual_backup))
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
 
-    print("🚀 ربات با قابلیت رد ایمیل تکراری و دریافت انواع فایل فورواردی فعال شد...")
+    print("🚀 ربات با سرور محلی تلگرام (دانلود تا سقف ۲ گیگابایت) فعال شد...")
     app.run_polling()

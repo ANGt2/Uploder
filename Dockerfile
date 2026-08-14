@@ -1,16 +1,36 @@
-FROM python:3.11-slim
+FROM alpine:3.19
 
-RUN apt-get update && apt-get install -y curl unzip ca-certificates && \
-    curl https://rclone.org/install.sh | bash && \
-    rm -rf /var/lib/apt/lists/*
+# نصب پایتون، Rclone و پیش‌نیازها
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    rclone \
+    curl \
+    ca-certificates \
+    bash
+
+# دانلود باینری رسمی Telegram Bot API Server
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+        curl -L -o /usr/local/bin/telegram-bot-api https://github.com/aiogram/telegram-bot-api-binaries/releases/latest/download/telegram-bot-api-linux-amd64 ; \
+    else \
+        curl -L -o /usr/local/bin/telegram-bot-api https://github.com/aiogram/telegram-bot-api-binaries/releases/latest/download/telegram-bot-api-linux-arm64 ; \
+    fi && \
+    chmod +x /usr/local/bin/telegram-bot-api
 
 WORKDIR /app
 
+# نصب کتابخانه‌های پایتون
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt --break-system-packages
+
 COPY . .
 
-RUN pip install --no-cache-dir python-telegram-bot
+# اسکریپت اجرای همزمان سرور تلگرام و ربات
+RUN echo '#!/bin/bash' > /app/entrypoint.sh && \
+    echo '/usr/local/bin/telegram-bot-api --local --http-port=8081 --dir=/app/tg-data --temp-dir=/app/tg-temp &' >> /app/entrypoint.sh && \
+    echo 'sleep 2' >> /app/entrypoint.sh && \
+    echo 'python3 bot.py' >> /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
 
-ENV PYTHONUNBUFFERED=1
-ENV RCLONE_CONFIG=/app/rclone.conf
-
-CMD ["python", "bot.py"]
+CMD ["/app/entrypoint.sh"]
