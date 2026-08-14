@@ -45,12 +45,6 @@ def get_user_accounts(user_id):
         save_data(USERS_DATA)
     return USERS_DATA[str_id]
 
-def make_progress_bar(percent):
-    done = int(percent // 10)
-    remain = 10 - done
-    bar = "█" * done + "░" * remain
-    return f"[{bar}] {percent}%"
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_info = get_user_accounts(user_id)
@@ -234,7 +228,7 @@ async def get_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_info = get_user_accounts(user_id)
 
     remote_name = f"u{user_id}_{len(user_info['accounts']) + 1}"
-    msg = await update.message.reply_text("⚡ **در حال برقراری ارتباط و بررسی اکانت...**", parse_mode="Markdown")
+    msg = await update.message.reply_text("⚡ **در حال بررسی اکانت...**", parse_mode="Markdown")
 
     obs = subprocess.run(["rclone", "obscure", acc_pass], capture_output=True, text=True)
     obs_pass = obs.stdout.strip() if obs.returncode == 0 else acc_pass
@@ -264,9 +258,8 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     user_info = get_user_accounts(user_id)
 
-    # بررسی وضعیت فاز آپلود دائمی کاربر
     if not user_info.get('upload_mode', False):
-        await update.message.reply_text("⚠️ فاز آپلود خاموش است! ابتدا دستور /start را بزنید و دکمه «🚀 شروع فاز آپلود فایل» را انتخاب کنید.")
+        await update.message.reply_text("⚠️ فاز آپلود خاموش است! ابتدا دستور /start را بزنید و فاز آپلود را روشن کنید.")
         return
 
     active_acc = user_info.get("active_acc")
@@ -277,7 +270,7 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target = user_info["accounts"][active_acc]["path"]
     remote_name = user_info["accounts"][active_acc]["remote"]
 
-    msg = await update.message.reply_text("📥 **در حال دریافت فایل از تلگرام...**\n`[░░░░░░░░░░] 0%`", parse_mode="Markdown")
+    msg = await update.message.reply_text("⚡ **در حال پردازش و انتقال فوق‌سریع...**", parse_mode="Markdown")
 
     file_path = None
     try:
@@ -309,43 +302,36 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         file_size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2)
 
-        progress_steps = [25, 60, 85]
-        for p in progress_steps:
-            bar_str = make_progress_bar(p)
-            await msg.edit_text(
-                f"☁️ **در حال انتقال فایل به سرور ابری...**\n"
-                f"──────────────────\n"
-                f"{file_icon} **فایل:** `{file_name}`\n"
-                f"📦 **حجم:** `{file_size_mb} MB`\n"
-                f"📊 **پیشرفت:** `{bar_str}`",
-                parse_mode="Markdown"
-            )
-            await asyncio.sleep(0.6)
-
-        res = subprocess.run(["rclone", "copy", file_path, target], capture_output=True, text=True)
+        # اجرای دستور انتقال توربو Rclone بدون تاخیر مصنوعی
+        upload_cmd = [
+            "rclone", "copy", file_path, target,
+            "--transfers", "4",
+            "--buffer-size", "64M",
+            "--mega-chunk-size", "32M",
+            "--fast-list"
+        ]
+        res = subprocess.run(upload_cmd, capture_output=True, text=True)
 
         if res.returncode == 0:
             link_cmd = ["rclone", "link", f"{remote_name}:{file_name}"]
             link_res = subprocess.run(link_cmd, capture_output=True, text=True)
             dl_link = link_res.stdout.strip() if link_res.returncode == 0 else "لینک عمومی مستقیم یافت نشد."
 
-            final_bar = make_progress_bar(100)
             kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔗 باز کردن لینک دانلود مستقیم", url=dl_link)]]) if "http" in dl_link else None
 
             await msg.edit_text(
-                f"✅ **آپلود با موفقیت انجام شد!**\n"
+                f"⚡ **آپلود موشکی با موفقیت انجام شد!**\n"
                 f"──────────────────\n"
-                f"{file_icon} **نام فایل:** `{file_name}`\n"
-                f"📦 **حجم فایل:** `{file_size_mb} MB`\n"
-                f"📊 **وضعیت:** `{final_bar}`\n"
+                f"{file_icon} **فایل:** `{file_name}`\n"
+                f"📦 **حجم:** `{file_size_mb} MB`\n"
                 f"🎯 **مقصد:** `{active_acc}`\n"
                 f"──────────────────\n"
-                f"🔗 **لینک اشتراک‌گذاری:**\n`{dl_link}`\n\n"
-                f"🟢 **فاز آپلود همچنان روشن است؛ فایل بعدی را بفرستید.**",
+                f"🔗 **لینک:**\n`{dl_link}`\n\n"
+                f"🟢 **آماده دریافت فایل بعدی...**",
                 parse_mode="Markdown", reply_markup=kb
             )
         else:
-            await msg.edit_text(f"❌ خطایی هنگام انتقال فایل پیش آمد:\n`{res.stderr.strip()}`", parse_mode="Markdown")
+            await msg.edit_text(f"❌ خطا هنگام انتقال:\n`{res.stderr.strip()}`", parse_mode="Markdown")
 
     except Exception as e:
         await msg.edit_text(f"❌ خطا: {str(e)}")
@@ -354,7 +340,7 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
             os.remove(file_path)
 
 if __name__ == '__main__':
-    app = ApplicationBuilder().token(TOKEN).read_timeout(60).write_timeout(60).build()
+    app = ApplicationBuilder().token(TOKEN).read_timeout(120).write_timeout(120).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(start_add_account, pattern="^add_account$")],
@@ -376,5 +362,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
 
-    print("🚀 ربات شکیل با حالت آپلود پیوسته دائمی روشن شد...")
+    print("🚀 ربات با سرعت توربو و بهینه‌سازی کامل روشن شد...")
     app.run_polling()
