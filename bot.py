@@ -285,7 +285,23 @@ async def get_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return GET_USER
 
 async def get_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['new_acc_user'] = update.message.text.strip()
+    input_user = update.message.text.strip()
+    user_id = str(update.effective_user.id)
+    user_info = get_user_accounts(user_id)
+    srv_type = context.user_data.get('new_acc_type', 'mega')
+
+    # بررسی ثبت نشدن ایمیل تکراری
+    for acc_n, acc_d in user_info.get("accounts", {}).items():
+        if acc_d.get("user", "").lower() == input_user.lower() and acc_d.get("type", "") == srv_type:
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
+            await update.message.reply_text(
+                f"⚠️ **این اکانت قبلاً با نام «{acc_n}» ثبت شده است!**\n\nامکان افزودن مجدد یک ایمیل تکراری وجود ندارد.",
+                parse_mode="Markdown",
+                reply_markup=kb
+            )
+            return ConversationHandler.END
+
+    context.user_data['new_acc_user'] = input_user
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ انصراف", callback_data="cancel_conv")]])
     await update.message.reply_text("🔑 **مرحله ۴ از ۴:** رمز عبور (Password) حساب را وارد کنید:", reply_markup=kb)
     return GET_PASS
@@ -416,28 +432,39 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
             shutil.rmtree(batch_dir)
 
 async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.effective_message
+    if not msg:
+        return
+
     user_id = str(update.effective_user.id)
     user_info = get_user_accounts(user_id)
 
     if not user_info.get('upload_mode', False):
-        await update.message.reply_text("⚠️ فاز آپلود خاموش است! /start را بزنید و فاز آپلود را روشن کنید.")
+        await msg.reply_text("⚠️ فاز آپلود خاموش است! /start را بزنید و فاز آپلود را روشن کنید.")
         return
 
     tg_file = None
-    file_name = "file"
+    file_name = f"file_{int(asyncio.get_event_loop().time())}"
 
-    if update.message.document:
-        tg_file = await update.message.document.get_file()
-        file_name = update.message.document.file_name or f"doc_{update.message.document.file_id[:6]}"
-    elif update.message.video:
-        tg_file = await update.message.video.get_file()
-        file_name = update.message.video.file_name or f"video_{update.message.video.file_id[:6]}.mp4"
-    elif update.message.audio:
-        tg_file = await update.message.audio.get_file()
-        file_name = update.message.audio.file_name or f"audio_{update.message.audio.file_id[:6]}.mp3"
-    elif update.message.photo:
-        tg_file = await update.message.photo[-1].get_file()
-        file_name = f"photo_{update.message.photo[-1].file_id[:6]}.jpg"
+    # دریافت تمام رسانه‌ها اعم از گالری، فوروارد، موزیک، ویس و ویدیو مسیج
+    if msg.document:
+        tg_file = await msg.document.get_file()
+        file_name = msg.document.file_name or f"doc_{msg.document.file_id[:6]}"
+    elif msg.video:
+        tg_file = await msg.video.get_file()
+        file_name = msg.video.file_name or f"video_{msg.video.file_id[:6]}.mp4"
+    elif msg.audio:
+        tg_file = await msg.audio.get_file()
+        file_name = msg.audio.file_name or f"audio_{msg.audio.file_id[:6]}.mp3"
+    elif msg.photo:
+        tg_file = await msg.photo[-1].get_file()
+        file_name = f"photo_{msg.photo[-1].file_id[:6]}.jpg"
+    elif msg.voice:
+        tg_file = await msg.voice.get_file()
+        file_name = f"voice_{msg.voice.file_id[:6]}.ogg"
+    elif msg.video_note:
+        tg_file = await msg.video_note.get_file()
+        file_name = f"videonote_{msg.video_note.file_id[:6]}.mp4"
     else:
         return
 
@@ -478,5 +505,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
 
-    print("🚀 ربات با چیدمان کامل و دیتابیس هماهنگ فعال شد...")
+    print("🚀 ربات با قابلیت رد ایمیل تکراری و دریافت انواع فایل فورواردی فعال شد...")
     app.run_polling()
