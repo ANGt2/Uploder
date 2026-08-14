@@ -1,6 +1,6 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder, ContextTypes, CommandHandler, 
+    ApplicationBuilder, ContextTypes, CommandHandler,
     MessageHandler, CallbackQueryHandler, ConversationHandler, filters
 )
 import os
@@ -22,8 +22,11 @@ GET_NAME, GET_TYPE, GET_USER, GET_PASS = range(4)
 
 def load_data():
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
     return {}
 
 def save_data(data):
@@ -39,30 +42,28 @@ def get_user_accounts(user_id):
         save_data(USERS_DATA)
     return USERS_DATA[str_id]
 
-# تابع ساخت نوار پیشرفت متحرک گرافیکی
 def make_progress_bar(percent):
     done = int(percent // 10)
     remain = 10 - done
     bar = "█" * done + "░" * remain
     return f"[{bar}] {percent}%"
 
-# منوی اصلی شکیل
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_info = get_user_accounts(user_id)
-    
+
     context.user_data['upload_mode'] = context.user_data.get('upload_mode', False)
     active_acc = user_info.get("active_acc") or "❌ هیچ اکانتی فعال نیست"
-    
+
     upload_status = "🟢 آماده دریافت فایل" if context.user_data['upload_mode'] else "🔴 غیرفعال"
     upload_btn_text = "⏹ توقف فاز آپلود" if context.user_data['upload_mode'] else "🚀 شروع فاز آپلود فایل"
-    
+
     keyboard = [
         [InlineKeyboardButton(upload_btn_text, callback_data="toggle_upload")],
         [InlineKeyboardButton("➕ افزودن اکانت ابری", callback_data="add_account"), InlineKeyboardButton("🔄 تغییر اکانت فعال", callback_data="change_account")],
         [InlineKeyboardButton("🗑 حذف اکانت‌های من", callback_data="delete_account_user"), InlineKeyboardButton("📊 وضعیت حساب من", callback_data="user_status")]
     ]
-    
+
     text = (
         "✨ **سیستم مدیریت هوشمند آپلود ابری پیشگام** ✨\n"
         "──────────────────────────────\n"
@@ -71,14 +72,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "──────────────────────────────\n"
         "👇 برای شروع عملیات یا تغییر تنظیمات، گزینه‌ای را انتخاب کنید:"
     )
-    
+
     reply_markup = InlineKeyboardMarkup(keyboard)
     if update.callback_query:
         await update.callback_query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
     else:
         await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
 
-# پنل مدیریت مخفی ادمین
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔ شما دسترسی به پنل مدیریت را ندارید.")
@@ -93,11 +93,10 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👑 **پنل فرماندهی ادمین**\n"
         "────────────────────\n"
-        f"👥 **تعداد کاربران ثبت‌شده:** `{total_users}` نفر", 
+        f"👥 **تعداد کاربران ثبت‌شده:** `{total_users}` نفر",
         parse_mode="Markdown", reply_markup=reply_markup
     )
 
-# مدیریت دکمه‌ها
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -113,7 +112,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kb = InlineKeyboardMarkup([[InlineKeyboardButton("➕ افزودن اکانت", callback_data="add_account")]])
             await query.edit_message_text("⚠️ **خطا:** شما هنوز هیچ اکانتی ثبت نکرده‌اید! ابتدا یک اکانت اضافه کنید.", reply_markup=kb)
             return
-        
+
         context.user_data['upload_mode'] = not context.user_data.get('upload_mode', False)
         await start(update, context)
 
@@ -123,7 +122,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kb = InlineKeyboardMarkup([[InlineKeyboardButton("➕ افزودن اکانت", callback_data="add_account")], [InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]])
             await query.edit_message_text("❌ هیچ اکانتی یافت نشد.", reply_markup=kb)
             return
-        
+
         keyboard = []
         active = user_info.get("active_acc")
         for name in accs.keys():
@@ -144,7 +143,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]])
             await query.edit_message_text("❌ اکانتی برای حذف وجود ندارد.", reply_markup=kb)
             return
-        
+
         keyboard = []
         for name in accs.keys():
             keyboard.append([InlineKeyboardButton(f"🗑 حذف {name}", callback_data=f"delacc_{name}")])
@@ -155,13 +154,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         acc_name = data.replace("delacc_", "")
         acc_info = user_info["accounts"].get(acc_name)
         if acc_info:
-        subprocess.run(["rclone", "config", "delete", remote_name], capture_output=True, text=True)
-        err_msg = result.stderr.strip() if result.stderr else "بدون پاسخ از سرور"
+            subprocess.run(["rclone", "config", "delete", acc_info["remote"]], capture_output=True, text=True)
             del user_info["accounts"][acc_name]
             if user_info.get("active_acc") == acc_name:
                 user_info["active_acc"] = list(user_info["accounts"].keys())[0] if user_info["accounts"] else None
             save_data(USERS_DATA)
-        
+
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
         await query.edit_message_text(f"🗑 اکانت **{acc_name}** با موفقیت حذف گردید.", parse_mode="Markdown", reply_markup=kb)
 
@@ -191,7 +189,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]])
         await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
 
-# افزودن اکانت با راهنمای زیبا
 async def start_add_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -200,7 +197,7 @@ async def start_add_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return GET_NAME
 
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['new_acc_name'] = update.message.text
+    context.user_data['new_acc_name'] = update.message.text.strip()
     keyboard = [
         [InlineKeyboardButton("☁️ Mega (مگا)", callback_data="type_mega"), InlineKeyboardButton("📦 TeraBox (تراباکس)", callback_data="type_terabox")],
         [InlineKeyboardButton("❌ انصراف", callback_data="cancel_conv")]
@@ -217,53 +214,46 @@ async def get_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return GET_USER
 
 async def get_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['new_acc_user'] = update.message.text
+    context.user_data['new_acc_user'] = update.message.text.strip()
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ انصراف", callback_data="cancel_conv")]])
     await update.message.reply_text("🔑 **مرحله ۴ از ۴:** رمز عبور (Password) حساب را وارد کنید:", reply_markup=kb)
     return GET_PASS
 
 async def get_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    acc_pass = update.message.text
+    acc_pass = update.message.text.strip()
     acc_name = context.user_data['new_acc_name']
     srv_type = context.user_data['new_acc_type']
     acc_user = context.user_data['new_acc_user']
     user_id = str(update.effective_user.id)
     user_info = get_user_accounts(user_id)
-    
+
     remote_name = f"u{user_id}_{len(user_info['accounts']) + 1}"
     msg = await update.message.reply_text("⚡ **در حال برقراری ارتباط و بررسی اکانت...**", parse_mode="Markdown")
 
-    # تبدیل مستقیم رمز
     obs = subprocess.run(["rclone", "obscure", acc_pass], capture_output=True, text=True)
-    obs_pass = obs.stdout.strip()
+    obs_pass = obs.stdout.strip() if obs.returncode == 0 else acc_pass
 
-    # ساخت ریموت با فلش مشخص کانفیگ
-    subprocess.run(["rclone", "--config", "/app/rclone.conf", "config", "create", remote_name, srv_type, f"user={acc_user}", f"pass={obs_pass}"], capture_output=True, text=True)
+    subprocess.run(["rclone", "config", "create", remote_name, srv_type, f"user={acc_user}", f"pass={obs_pass}"], capture_output=True, text=True)
 
-    # تست دسترسی
-    res = subprocess.run(["rclone", "--config", "/app/rclone.conf", "lsd", f"{remote_name}:"], capture_output=True, text=True)
+    res = subprocess.run(["rclone", "lsd", f"{remote_name}:"], capture_output=True, text=True)
 
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
-    
+
     if res.returncode == 0:
         user_info['accounts'][acc_name] = {"remote": remote_name, "path": f"{remote_name}:/"}
         user_info['active_acc'] = acc_name
         save_data(USERS_DATA)
         await msg.edit_text(f"🎉 **تبریک!** اکانت **{acc_name}** با موفقیت اضافه و تایید شد.", parse_mode="Markdown", reply_markup=kb)
     else:
-        subprocess.run(["rclone", "--config", "/app/rclone.conf", "config", "delete", remote_name], capture_output=True, text=True)
+        subprocess.run(["rclone", "config", "delete", remote_name], capture_output=True, text=True)
         err = res.stderr.strip() if res.stderr else res.stdout.strip()
-        await msg.edit_text(f"❌ **اتصال ناموفق بود!**
-
-🔍 **پاسخ سیستم:**
-`{err}`", parse_mode="Markdown", reply_markup=kb)
+        await msg.edit_text(f"❌ **اتصال ناموفق بود!**\n\n🔍 **پاسخ سرور:**\n`{err}`", parse_mode="Markdown", reply_markup=kb)
     return ConversationHandler.END
 
 async def cancel_conv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await start(update, context)
     return ConversationHandler.END
 
-# پردازش و آپلود زیبا همراه با Progressive Bar واقعی
 async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.user_data.get('upload_mode'):
         await update.message.reply_text("⚠️ ربات در فاز آپلود نیست! ابتدا /start را بزنید و فاز آپلود را روشن کنید.")
@@ -272,15 +262,14 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     user_info = get_user_accounts(user_id)
     active_acc = user_info.get("active_acc")
-    
+
     if not active_acc or active_acc not in user_info.get("accounts", {}):
         await update.message.reply_text("❌ اکانت فعالی یافت نشد.")
         return
 
     target = user_info["accounts"][active_acc]["path"]
     remote_name = user_info["accounts"][active_acc]["remote"]
-    
-    # پیام اولیه جذاب
+
     msg = await update.message.reply_text("📥 **در حال دریافت فایل از تلگرام...**\n`[░░░░░░░░░░] 0%`", parse_mode="Markdown")
 
     try:
@@ -310,7 +299,6 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         file_size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2)
 
-        # شبیه‌سازی انیمیشن پیشرفت اختصاصی آپلود روی مگا
         progress_steps = [20, 45, 75, 95]
         for p in progress_steps:
             bar_str = make_progress_bar(p)
@@ -324,16 +312,14 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await asyncio.sleep(0.8)
 
-        # دستور نهایی آپلود با Rclone
-        res = os.system(f'rclone copy "{file_path}" "{target}"')
+        res = subprocess.run(["rclone", "copy", file_path, target], capture_output=True, text=True)
 
-        if res == 0:
-            link_cmd = f'rclone link "{remote_name}:{file_name}"'
-            link_res = subprocess.run(link_cmd, shell=True, capture_output=True, text=True)
+        if res.returncode == 0:
+            link_cmd = ["rclone", "link", f"{remote_name}:{file_name}"]
+            link_res = subprocess.run(link_cmd, capture_output=True, text=True)
             dl_link = link_res.stdout.strip() if link_res.returncode == 0 else "لینک عمومی مستقیم یافت نشد."
 
             final_bar = make_progress_bar(100)
-            
             kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔗 باز کردن لینک دانلود مستقیم", url=dl_link)]]) if "http" in dl_link else None
 
             await msg.edit_text(
@@ -348,7 +334,7 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown", reply_markup=kb
             )
         else:
-            await msg.edit_text("❌ خطایی هنگام انتقال فایل پیش آمد.")
+            await msg.edit_text(f"❌ خطایی هنگام انتقال فایل پیش آمد:\n`{res.stderr.strip()}`", parse_mode="Markdown")
 
         if os.path.exists(file_path):
             os.remove(file_path)
