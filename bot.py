@@ -345,11 +345,11 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
+        # دستور بهینه و بدون فلگ‌های نامعتبر
         upload_cmd = [
             "rclone", "copy", batch_dir, target,
             "--transfers", "4",
             "--buffer-size", "64M",
-            "--mega-chunk-size", "32M",
             "--fast-list"
         ]
         res = subprocess.run(upload_cmd, capture_output=True, text=True)
@@ -443,5 +443,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
 
-    print("🚀 ربات با رفع کامل باگ محدودیت طول کاراکتر فعال شد...")
+    print("🚀 ربات با دستور تمیز و استاندارد Rclone فعال شد...")
     app.run_polling()
