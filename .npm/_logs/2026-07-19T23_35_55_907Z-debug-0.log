@@ -1,0 +1,302 @@
+0 verbose cli /data/data/com.termux/files/usr/bin/node /data/data/com.termux/files/usr/bin/npm
+1 info using npm@11.16.0
+2 info using node@v26.2.0
+3 silly config load:file:/data/data/com.termux/files/usr/lib/node_modules/npm/npmrc
+4 silly config load:file:/data/data/com.termux/files/home/.npmrc
+5 silly config load:file:/data/data/com.termux/files/usr/etc/npmrc
+6 verbose title npm install better-sqlite3@12.6.2
+7 verbose argv "install" "better-sqlite3@12.6.2" "--no-audit" "--no-fund" "--prefer-online" "--no-save"
+8 verbose logfile logs-max:10 dir:/data/data/com.termux/files/home/.npm/_logs/2026-07-19T23_35_55_907Z-
+9 verbose logfile /data/data/com.termux/files/home/.npm/_logs/2026-07-19T23_35_55_907Z-debug-0.log
+10 silly packumentCache heap:1174405120 maxSize:293601280 maxEntrySize:146800640
+11 silly logfile done cleaning log files
+12 silly idealTree buildDeps
+13 silly fetch manifest better-sqlite3@12.6.2
+14 silly packumentCache full:https://registry.npmjs.org/better-sqlite3 cache-miss
+15 http fetch GET 200 https://registry.npmjs.org/better-sqlite3 2095ms (cache miss)
+16 silly packumentCache full:https://registry.npmjs.org/better-sqlite3 set size:undefined disposed:false
+17 silly placeDep ROOT better-sqlite3@12.6.2 OK for:  want: 12.6.2
+18 silly fetch manifest bindings@^1.5.0
+19 silly packumentCache full:https://registry.npmjs.org/bindings cache-miss
+20 silly fetch manifest prebuild-install@^7.1.1
+21 silly packumentCache full:https://registry.npmjs.org/prebuild-install cache-miss
+22 http fetch GET 200 https://registry.npmjs.org/bindings 351ms (cache miss)
+23 silly packumentCache full:https://registry.npmjs.org/bindings set size:undefined disposed:false
+24 http fetch GET 200 https://registry.npmjs.org/prebuild-install 1058ms (cache miss)
+25 silly packumentCache full:https://registry.npmjs.org/prebuild-install set size:undefined disposed:false
+26 silly placeDep node_modules/better-sqlite3 bindings@1.5.0 OK for: better-sqlite3@12.6.2 want: ^1.5.0
+27 silly placeDep node_modules/better-sqlite3 prebuild-install@7.1.3 OK for: better-sqlite3@12.6.2 want: ^7.1.1
+28 silly fetch manifest file-uri-to-path@1.0.0
+29 silly packumentCache full:https://registry.npmjs.org/file-uri-to-path cache-miss
+30 silly fetch manifest rc@^1.2.7
+31 silly packumentCache full:https://registry.npmjs.org/rc cache-miss
+32 silly fetch manifest pump@^3.0.0
+33 silly packumentCache full:https://registry.npmjs.org/pump cache-miss
+34 silly fetch manifest tar-fs@^2.0.0
+35 silly packumentCache full:https://registry.npmjs.org/tar-fs cache-miss
+36 silly fetch manifest minimist@^1.2.3
+37 silly packumentCache full:https://registry.npmjs.org/minimist cache-miss
+38 http fetch GET 200 https://registry.npmjs.org/file-uri-to-path 413ms (cache miss)
+39 silly packumentCache full:https://registry.npmjs.org/file-uri-to-path set size:undefined disposed:false
+40 silly fetch manifest node-abi@^3.3.0
+41 silly packumentCache full:https://registry.npmjs.org/node-abi cache-miss
+42 http fetch GET 200 https://registry.npmjs.org/rc 452ms (cache miss)
+43 silly packumentCache full:https://registry.npmjs.org/rc set size:undefined disposed:false
+44 silly fetch manifest simple-get@^4.0.0
+45 silly packumentCache full:https://registry.npmjs.org/simple-get cache-miss
+46 http fetch GET 200 https://registry.npmjs.org/simple-get 708ms (cache miss)
+47 silly packumentCache full:https://registry.npmjs.org/simple-get set size:undefined disposed:false
+48 silly fetch manifest detect-libc@^2.0.0
+49 silly packumentCache full:https://registry.npmjs.org/detect-libc cache-miss
+50 http fetch GET 200 https://registry.npmjs.org/node-abi 885ms (cache miss)
+51 silly packumentCache full:https://registry.npmjs.org/node-abi set size:undefined disposed:false
+52 silly fetch manifest tunnel-agent@^0.6.0
+53 silly packumentCache full:https://registry.npmjs.org/tunnel-agent cache-miss
+54 http fetch GET 200 https://registry.npmjs.org/tunnel-agent 446ms (cache miss)
+55 silly packumentCache full:https://registry.npmjs.org/tunnel-agent set size:undefined disposed:false
+56 silly fetch manifest mkdirp-classic@^0.5.3
+57 silly packumentCache full:https://registry.npmjs.org/mkdirp-classic cache-miss
+58 http fetch GET 200 https://registry.npmjs.org/pump 1918ms (cache miss)
+59 silly packumentCache full:https://registry.npmjs.org/pump set size:undefined disposed:false
+60 silly fetch manifest expand-template@^2.0.3
+61 silly packumentCache full:https://registry.npmjs.org/expand-template cache-miss
+62 http fetch GET 200 https://registry.npmjs.org/detect-libc 730ms (cache miss)
+63 silly packumentCache full:https://registry.npmjs.org/detect-libc set size:undefined disposed:false
+64 silly fetch manifest napi-build-utils@^2.0.0
+65 silly packumentCache full:https://registry.npmjs.org/napi-build-utils cache-miss
+66 http fetch GET 200 https://registry.npmjs.org/minimist 2073ms (cache miss)
+67 silly packumentCache full:https://registry.npmjs.org/minimist set size:undefined disposed:false
+68 silly fetch manifest github-from-package@0.0.0
+69 silly packumentCache full:https://registry.npmjs.org/github-from-package cache-miss
+70 http fetch GET 200 https://registry.npmjs.org/tar-fs 2142ms (cache miss)
+71 silly packumentCache full:https://registry.npmjs.org/tar-fs set size:undefined disposed:false
+72 http fetch GET 200 https://registry.npmjs.org/mkdirp-classic 485ms (cache miss)
+73 silly packumentCache full:https://registry.npmjs.org/mkdirp-classic set size:undefined disposed:false
+74 http fetch GET 200 https://registry.npmjs.org/napi-build-utils 422ms (cache miss)
+75 silly packumentCache full:https://registry.npmjs.org/napi-build-utils set size:undefined disposed:false
+76 http fetch GET 200 https://registry.npmjs.org/expand-template 493ms (cache miss)
+77 silly packumentCache full:https://registry.npmjs.org/expand-template set size:undefined disposed:false
+78 http fetch GET 200 https://registry.npmjs.org/github-from-package 353ms (cache miss)
+79 silly packumentCache full:https://registry.npmjs.org/github-from-package set size:undefined disposed:false
+80 silly placeDep node_modules/better-sqlite3 file-uri-to-path@1.0.0 OK for: bindings@1.5.0 want: 1.0.0
+81 silly placeDep node_modules/better-sqlite3 detect-libc@2.1.2 OK for: prebuild-install@7.1.3 want: ^2.0.0
+82 silly placeDep node_modules/better-sqlite3 expand-template@2.0.3 OK for: prebuild-install@7.1.3 want: ^2.0.3
+83 silly placeDep node_modules/better-sqlite3 github-from-package@0.0.0 OK for: prebuild-install@7.1.3 want: 0.0.0
+84 silly placeDep node_modules/better-sqlite3 minimist@1.2.8 OK for: prebuild-install@7.1.3 want: ^1.2.3
+85 silly placeDep node_modules/better-sqlite3 mkdirp-classic@0.5.3 OK for: prebuild-install@7.1.3 want: ^0.5.3
+86 silly placeDep node_modules/better-sqlite3 napi-build-utils@2.0.0 OK for: prebuild-install@7.1.3 want: ^2.0.0
+87 silly placeDep node_modules/better-sqlite3 node-abi@3.94.0 OK for: prebuild-install@7.1.3 want: ^3.3.0
+88 silly placeDep node_modules/better-sqlite3 pump@3.0.4 OK for: prebuild-install@7.1.3 want: ^3.0.0
+89 silly placeDep node_modules/better-sqlite3 rc@1.2.8 OK for: prebuild-install@7.1.3 want: ^1.2.7
+90 silly placeDep node_modules/better-sqlite3 simple-get@4.0.1 OK for: prebuild-install@7.1.3 want: ^4.0.0
+91 silly placeDep node_modules/better-sqlite3 tar-fs@2.1.5 OK for: prebuild-install@7.1.3 want: ^2.0.0
+92 silly placeDep node_modules/better-sqlite3 tunnel-agent@0.6.0 OK for: prebuild-install@7.1.3 want: ^0.6.0
+93 silly fetch manifest semver@^7.3.5
+94 silly packumentCache full:https://registry.npmjs.org/semver cache-miss
+95 silly fetch manifest end-of-stream@^1.1.0
+96 silly packumentCache full:https://registry.npmjs.org/end-of-stream cache-miss
+97 silly fetch manifest once@^1.3.1
+98 silly packumentCache full:https://registry.npmjs.org/once cache-miss
+99 silly fetch manifest ini@~1.3.0
+100 silly packumentCache full:https://registry.npmjs.org/ini cache-miss
+101 silly fetch manifest deep-extend@^0.6.0
+102 silly packumentCache full:https://registry.npmjs.org/deep-extend cache-miss
+103 http fetch GET 200 https://registry.npmjs.org/once 398ms (cache miss)
+104 silly packumentCache full:https://registry.npmjs.org/once set size:undefined disposed:false
+105 silly fetch manifest strip-json-comments@~2.0.1
+106 silly packumentCache full:https://registry.npmjs.org/strip-json-comments cache-miss
+107 http fetch GET 200 https://registry.npmjs.org/end-of-stream 441ms (cache miss)
+108 silly packumentCache full:https://registry.npmjs.org/end-of-stream set size:undefined disposed:false
+109 silly fetch manifest decompress-response@^6.0.0
+110 silly packumentCache full:https://registry.npmjs.org/decompress-response cache-miss
+111 http fetch GET 200 https://registry.npmjs.org/deep-extend 447ms (cache miss)
+112 silly packumentCache full:https://registry.npmjs.org/deep-extend set size:undefined disposed:false
+113 silly fetch manifest simple-concat@^1.0.0
+114 silly packumentCache full:https://registry.npmjs.org/simple-concat cache-miss
+115 http fetch GET 200 https://registry.npmjs.org/ini 537ms (cache miss)
+116 silly packumentCache full:https://registry.npmjs.org/ini set size:undefined disposed:false
+117 silly fetch manifest chownr@^1.1.1
+118 silly packumentCache full:https://registry.npmjs.org/chownr cache-miss
+119 http fetch GET 200 https://registry.npmjs.org/semver 774ms (cache miss)
+120 silly packumentCache full:https://registry.npmjs.org/semver set size:undefined disposed:false
+121 silly fetch manifest tar-stream@^2.1.4
+122 silly packumentCache full:https://registry.npmjs.org/tar-stream cache-miss
+123 http fetch GET 200 https://registry.npmjs.org/strip-json-comments 668ms (cache miss)
+124 silly packumentCache full:https://registry.npmjs.org/strip-json-comments set size:undefined disposed:false
+125 silly fetch manifest safe-buffer@^5.0.1
+126 silly packumentCache full:https://registry.npmjs.org/safe-buffer cache-miss
+127 http fetch GET 200 https://registry.npmjs.org/simple-concat 709ms (cache miss)
+128 silly packumentCache full:https://registry.npmjs.org/simple-concat set size:undefined disposed:false
+129 http fetch GET 200 https://registry.npmjs.org/chownr 640ms (cache miss)
+130 silly packumentCache full:https://registry.npmjs.org/chownr set size:undefined disposed:false
+131 http fetch GET 200 https://registry.npmjs.org/decompress-response 791ms (cache miss)
+132 silly packumentCache full:https://registry.npmjs.org/decompress-response set size:undefined disposed:false
+133 http fetch GET 200 https://registry.npmjs.org/tar-stream 461ms (cache miss)
+134 silly packumentCache full:https://registry.npmjs.org/tar-stream set size:undefined disposed:false
+135 http fetch GET 200 https://registry.npmjs.org/safe-buffer 487ms (cache miss)
+136 silly packumentCache full:https://registry.npmjs.org/safe-buffer set size:undefined disposed:false
+137 silly placeDep node_modules/better-sqlite3 semver@7.8.5 OK for: node-abi@3.94.0 want: ^7.3.5
+138 silly placeDep node_modules/better-sqlite3 end-of-stream@1.4.5 OK for: pump@3.0.4 want: ^1.1.0
+139 silly placeDep node_modules/better-sqlite3 once@1.4.0 OK for: pump@3.0.4 want: ^1.3.1
+140 silly fetch manifest once@^1.4.0
+141 silly packumentCache full:https://registry.npmjs.org/once cache-miss
+142 silly fetch manifest wrappy@1
+143 silly packumentCache full:https://registry.npmjs.org/wrappy cache-miss
+144 http fetch GET 200 https://registry.npmjs.org/wrappy 281ms (cache miss)
+145 silly packumentCache full:https://registry.npmjs.org/wrappy set size:undefined disposed:false
+146 http fetch GET 200 https://registry.npmjs.org/once 385ms (cache revalidated)
+147 silly packumentCache full:https://registry.npmjs.org/once set size:11752 disposed:false
+148 silly placeDep node_modules/better-sqlite3 wrappy@1.0.2 OK for: once@1.4.0 want: 1
+149 silly placeDep node_modules/better-sqlite3 deep-extend@0.6.0 OK for: rc@1.2.8 want: ^0.6.0
+150 silly placeDep node_modules/better-sqlite3 ini@1.3.8 OK for: rc@1.2.8 want: ~1.3.0
+151 silly placeDep node_modules/better-sqlite3 strip-json-comments@2.0.1 OK for: rc@1.2.8 want: ~2.0.1
+152 silly placeDep node_modules/better-sqlite3 decompress-response@6.0.0 OK for: simple-get@4.0.1 want: ^6.0.0
+153 silly placeDep node_modules/better-sqlite3 simple-concat@1.0.1 OK for: simple-get@4.0.1 want: ^1.0.0
+154 silly fetch manifest mimic-response@^3.1.0
+155 silly packumentCache full:https://registry.npmjs.org/mimic-response cache-miss
+156 http fetch GET 200 https://registry.npmjs.org/mimic-response 303ms (cache miss)
+157 silly packumentCache full:https://registry.npmjs.org/mimic-response set size:undefined disposed:false
+158 silly placeDep node_modules/better-sqlite3 mimic-response@3.1.0 OK for: decompress-response@6.0.0 want: ^3.1.0
+159 silly placeDep node_modules/better-sqlite3 chownr@1.1.4 OK for: tar-fs@2.1.5 want: ^1.1.1
+160 silly placeDep node_modules/better-sqlite3 tar-stream@2.2.0 OK for: tar-fs@2.1.5 want: ^2.1.4
+161 silly fetch manifest bl@^4.0.3
+162 silly packumentCache full:https://registry.npmjs.org/bl cache-miss
+163 silly fetch manifest inherits@^2.0.3
+164 silly packumentCache full:https://registry.npmjs.org/inherits cache-miss
+165 silly fetch manifest fs-constants@^1.0.0
+166 silly packumentCache full:https://registry.npmjs.org/fs-constants cache-miss
+167 silly fetch manifest readable-stream@^3.1.1
+168 silly packumentCache full:https://registry.npmjs.org/readable-stream cache-miss
+169 http fetch GET 200 https://registry.npmjs.org/inherits 359ms (cache miss)
+170 silly packumentCache full:https://registry.npmjs.org/inherits set size:undefined disposed:false
+171 http fetch GET 200 https://registry.npmjs.org/fs-constants 371ms (cache miss)
+172 silly packumentCache full:https://registry.npmjs.org/fs-constants set size:undefined disposed:false
+173 http fetch GET 200 https://registry.npmjs.org/bl 605ms (cache miss)
+174 silly packumentCache full:https://registry.npmjs.org/bl set size:undefined disposed:false
+175 http fetch GET 200 https://registry.npmjs.org/readable-stream 657ms (cache miss)
+176 silly packumentCache full:https://registry.npmjs.org/readable-stream set size:undefined disposed:false
+177 silly placeDep node_modules/better-sqlite3 bl@4.1.0 OK for: tar-stream@2.2.0 want: ^4.0.3
+178 silly placeDep node_modules/better-sqlite3 fs-constants@1.0.0 OK for: tar-stream@2.2.0 want: ^1.0.0
+179 silly placeDep node_modules/better-sqlite3 inherits@2.0.4 OK for: tar-stream@2.2.0 want: ^2.0.3
+180 silly placeDep node_modules/better-sqlite3 readable-stream@3.6.2 OK for: tar-stream@2.2.0 want: ^3.1.1
+181 silly fetch manifest buffer@^5.5.0
+182 silly packumentCache full:https://registry.npmjs.org/buffer cache-miss
+183 silly fetch manifest inherits@^2.0.4
+184 silly packumentCache full:https://registry.npmjs.org/inherits cache-miss
+185 silly fetch manifest readable-stream@^3.4.0
+186 silly packumentCache full:https://registry.npmjs.org/readable-stream cache-miss
+187 silly fetch manifest string_decoder@^1.1.1
+188 silly packumentCache full:https://registry.npmjs.org/string_decoder cache-miss
+189 silly fetch manifest util-deprecate@^1.0.1
+190 silly packumentCache full:https://registry.npmjs.org/util-deprecate cache-miss
+191 http fetch GET 200 https://registry.npmjs.org/util-deprecate 342ms (cache miss)
+192 silly packumentCache full:https://registry.npmjs.org/util-deprecate set size:undefined disposed:false
+193 http fetch GET 200 https://registry.npmjs.org/string_decoder 363ms (cache miss)
+194 silly packumentCache full:https://registry.npmjs.org/string_decoder set size:undefined disposed:false
+195 http fetch GET 200 https://registry.npmjs.org/inherits 465ms (cache revalidated)
+196 silly packumentCache full:https://registry.npmjs.org/inherits set size:12925 disposed:false
+197 http fetch GET 200 https://registry.npmjs.org/readable-stream 490ms (cache revalidated)
+198 silly packumentCache full:https://registry.npmjs.org/readable-stream set size:261096 disposed:false
+199 http fetch GET 200 https://registry.npmjs.org/buffer 623ms (cache miss)
+200 silly packumentCache full:https://registry.npmjs.org/buffer set size:undefined disposed:false
+201 silly placeDep node_modules/better-sqlite3 buffer@5.7.1 OK for: bl@4.1.0 want: ^5.5.0
+202 silly fetch manifest base64-js@^1.3.1
+203 silly packumentCache full:https://registry.npmjs.org/base64-js cache-miss
+204 silly fetch manifest ieee754@^1.1.13
+205 silly packumentCache full:https://registry.npmjs.org/ieee754 cache-miss
+206 http fetch GET 200 https://registry.npmjs.org/base64-js 306ms (cache miss)
+207 silly packumentCache full:https://registry.npmjs.org/base64-js set size:undefined disposed:false
+208 http fetch GET 200 https://registry.npmjs.org/ieee754 348ms (cache miss)
+209 silly packumentCache full:https://registry.npmjs.org/ieee754 set size:undefined disposed:false
+210 silly placeDep node_modules/better-sqlite3 base64-js@1.5.1 OK for: buffer@5.7.1 want: ^1.3.1
+211 silly placeDep node_modules/better-sqlite3 ieee754@1.2.1 OK for: buffer@5.7.1 want: ^1.1.13
+212 silly placeDep node_modules/better-sqlite3 string_decoder@1.3.0 OK for: readable-stream@3.6.2 want: ^1.1.1
+213 silly placeDep node_modules/better-sqlite3 util-deprecate@1.0.2 OK for: readable-stream@3.6.2 want: ^1.0.1
+214 silly fetch manifest safe-buffer@~5.2.0
+215 silly packumentCache full:https://registry.npmjs.org/safe-buffer cache-miss
+216 http fetch GET 200 https://registry.npmjs.org/safe-buffer 235ms (cache revalidated)
+217 silly packumentCache full:https://registry.npmjs.org/safe-buffer set size:41183 disposed:false
+218 silly placeDep node_modules/better-sqlite3 safe-buffer@5.2.1 OK for: string_decoder@1.3.0 want: ~5.2.0
+219 warn EBADENGINE Unsupported engine {
+219 warn EBADENGINE   package: 'better-sqlite3@12.6.2',
+219 warn EBADENGINE   required: { node: '20.x || 22.x || 23.x || 24.x || 25.x' },
+219 warn EBADENGINE   current: { node: 'v26.2.0', npm: '11.16.0' }
+219 warn EBADENGINE }
+220 silly reify moves {}
+221 http fetch GET 200 https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz 2661ms (cache miss)
+222 http fetch GET 200 https://registry.npmjs.org/decompress-response/-/decompress-response-6.0.0.tgz 3235ms (cache miss)
+223 http fetch GET 200 https://registry.npmjs.org/ieee754/-/ieee754-1.2.1.tgz 3300ms (cache miss)
+224 http fetch GET 200 https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.2.1.tgz 3411ms (cache miss)
+225 http fetch GET 200 https://registry.npmjs.org/string_decoder/-/string_decoder-1.3.0.tgz 3407ms (cache miss)
+226 http fetch GET 200 https://registry.npmjs.org/strip-json-comments/-/strip-json-comments-2.0.1.tgz 3568ms (cache miss)
+227 http fetch GET 200 https://registry.npmjs.org/wrappy/-/wrappy-1.0.2.tgz 3622ms (cache miss)
+228 http fetch GET 200 https://registry.npmjs.org/end-of-stream/-/end-of-stream-1.4.5.tgz 3624ms (cache miss)
+229 http fetch GET 200 https://registry.npmjs.org/deep-extend/-/deep-extend-0.6.0.tgz 3755ms (cache miss)
+230 http fetch GET 200 https://registry.npmjs.org/ini/-/ini-1.3.8.tgz 3803ms (cache miss)
+231 http fetch GET 200 https://registry.npmjs.org/once/-/once-1.4.0.tgz 3796ms (cache miss)
+232 http fetch GET 200 https://registry.npmjs.org/tunnel-agent/-/tunnel-agent-0.6.0.tgz 3823ms (cache miss)
+233 http fetch GET 200 https://registry.npmjs.org/mimic-response/-/mimic-response-3.1.0.tgz 3946ms (cache miss)
+234 http fetch GET 200 https://registry.npmjs.org/simple-get/-/simple-get-4.0.1.tgz 3916ms (cache miss)
+235 http fetch GET 200 https://registry.npmjs.org/fs-constants/-/fs-constants-1.0.0.tgz 4038ms (cache miss)
+236 http fetch GET 200 https://registry.npmjs.org/inherits/-/inherits-2.0.4.tgz 4048ms (cache miss)
+237 http fetch GET 200 https://registry.npmjs.org/simple-concat/-/simple-concat-1.0.1.tgz 4026ms (cache miss)
+238 http fetch GET 200 https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz 4087ms (cache miss)
+239 http fetch GET 200 https://registry.npmjs.org/chownr/-/chownr-1.1.4.tgz 4073ms (cache miss)
+240 http fetch GET 200 https://registry.npmjs.org/pump/-/pump-3.0.4.tgz 4019ms (cache miss)
+241 http fetch GET 200 https://registry.npmjs.org/node-abi/-/node-abi-3.94.0.tgz 4019ms (cache miss)
+242 http fetch GET 200 https://registry.npmjs.org/mkdirp-classic/-/mkdirp-classic-0.5.3.tgz 4020ms (cache miss)
+243 http fetch GET 200 https://registry.npmjs.org/github-from-package/-/github-from-package-0.0.0.tgz 4016ms (cache miss)
+244 http fetch GET 200 https://registry.npmjs.org/rc/-/rc-1.2.8.tgz 4053ms (cache miss)
+245 http fetch GET 200 https://registry.npmjs.org/expand-template/-/expand-template-2.0.3.tgz 4060ms (cache miss)
+246 http fetch GET 200 https://registry.npmjs.org/napi-build-utils/-/napi-build-utils-2.0.0.tgz 4083ms (cache miss)
+247 http fetch GET 200 https://registry.npmjs.org/bindings/-/bindings-1.5.0.tgz 4087ms (cache miss)
+248 http fetch GET 200 https://registry.npmjs.org/file-uri-to-path/-/file-uri-to-path-1.0.0.tgz 4117ms (cache miss)
+249 http fetch GET 200 https://registry.npmjs.org/tar-stream/-/tar-stream-2.2.0.tgz 4256ms (cache miss)
+250 http fetch GET 200 https://registry.npmjs.org/detect-libc/-/detect-libc-2.1.2.tgz 4207ms (cache miss)
+251 http fetch GET 200 https://registry.npmjs.org/buffer/-/buffer-5.7.1.tgz 4358ms (cache miss)
+252 http fetch GET 200 https://registry.npmjs.org/bl/-/bl-4.1.0.tgz 4358ms (cache miss)
+253 http fetch GET 200 https://registry.npmjs.org/prebuild-install/-/prebuild-install-7.1.3.tgz 4273ms (cache miss)
+254 warn deprecated prebuild-install@7.1.3: No longer maintained. Please contact the author of the relevant native addon; alternatives are available.
+255 http fetch GET 200 https://registry.npmjs.org/tar-fs/-/tar-fs-2.1.5.tgz 4488ms (cache miss)
+256 http fetch GET 200 https://registry.npmjs.org/minimist/-/minimist-1.2.8.tgz 4504ms (cache miss)
+257 http fetch GET 200 https://registry.npmjs.org/readable-stream/-/readable-stream-3.6.2.tgz 4792ms (cache miss)
+258 http fetch GET 200 https://registry.npmjs.org/semver/-/semver-7.8.5.tgz 4839ms (cache miss)
+259 http fetch GET 200 https://registry.npmjs.org/better-sqlite3/-/better-sqlite3-12.6.2.tgz 6049ms (cache miss)
+260 info run better-sqlite3@12.6.2 install node_modules/better-sqlite3 prebuild-install || node-gyp rebuild --release
+261 info run better-sqlite3@12.6.2 install { code: null, signal: 'SIGINT' }
+262 verbose stack Error: command failed
+262 verbose stack     at promiseSpawn (/data/data/com.termux/files/usr/lib/node_modules/npm/node_modules/@npmcli/promise-spawn/lib/index.js:22:22)
+262 verbose stack     at spawnWithShell (/data/data/com.termux/files/usr/lib/node_modules/npm/node_modules/@npmcli/promise-spawn/lib/index.js:124:10)
+262 verbose stack     at promiseSpawn (/data/data/com.termux/files/usr/lib/node_modules/npm/node_modules/@npmcli/promise-spawn/lib/index.js:12:12)
+262 verbose stack     at runScriptPkg (/data/data/com.termux/files/usr/lib/node_modules/npm/node_modules/@npmcli/run-script/lib/run-script-pkg.js:79:13)
+262 verbose stack     at runScript (/data/data/com.termux/files/usr/lib/node_modules/npm/node_modules/@npmcli/run-script/lib/run-script.js:9:12)
+262 verbose stack     at /data/data/com.termux/files/usr/lib/node_modules/npm/node_modules/@npmcli/arborist/lib/arborist/rebuild.js:341:17
+262 verbose stack     at run (/data/data/com.termux/files/usr/lib/node_modules/npm/node_modules/promise-call-limit/dist/commonjs/index.js:67:22)
+262 verbose stack     at /data/data/com.termux/files/usr/lib/node_modules/npm/node_modules/promise-call-limit/dist/commonjs/index.js:84:9
+262 verbose stack     at new Promise (<anonymous>)
+262 verbose stack     at callLimit (/data/data/com.termux/files/usr/lib/node_modules/npm/node_modules/promise-call-limit/dist/commonjs/index.js:35:69)
+263 verbose pkgid better-sqlite3@12.6.2
+264 error path /data/data/com.termux/files/usr/lib/node_modules/better-sqlite3
+265 error command failed
+266 error signal SIGINT
+267 error command sh -c prebuild-install || node-gyp rebuild --release
+268 error prebuild-install warn install No prebuilt binaries found (target=26.2.0 runtime=node arch=arm64 libc= platform=android)
+268 error gyp info it worked if it ends with ok
+268 error gyp info using node-gyp@12.3.0
+268 error gyp info using node@26.2.0 | android | arm64
+268 error gyp info find Python using Python version 3.13.13 found at "/data/data/com.termux/files/usr/bin/python3"
+268 error gyp http GET https://nodejs.org/download/release/v26.2.0/node-v26.2.0-headers.tar.gz
+268 error gyp http 200 https://nodejs.org/download/release/v26.2.0/node-v26.2.0-headers.tar.gz
+269 silly unfinished npm timer reify 1784504164355
+270 silly unfinished npm timer reify:build 1784504183305
+271 silly unfinished npm timer build 1784504183310
+272 silly unfinished npm timer build:deps 1784504183315
+273 silly unfinished npm timer build:run:install 1784504183520
+274 silly unfinished npm timer build:run:install:node_modules/better-sqlite3 1784504183523
+275 verbose cwd /data/data/com.termux/files/home/.9router/runtime
+276 verbose os Linux 4.14.186-perf-g0c6efddd96c7
+277 verbose node v26.2.0
+278 verbose npm  v11.16.0
+279 verbose exit 1
+280 verbose code 1
+281 error A complete log of this run can be found in: /data/data/com.termux/files/home/.npm/_logs/2026-07-19T23_35_55_907Z-debug-0.log

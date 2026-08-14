@@ -1,0 +1,1089 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# MVLITE_PART_01_CORE
+# This installer creates a standalone Telegram bot project.
+# Usage in Termux:
+#   bash MVLITE_PART_01_CORE.txt
+#   cd mvlite_bot
+#   python app.py
+
+set -e
+
+PROJECT_DIR="mvlite_bot"
+mkdir -p "$PROJECT_DIR"
+cd "$PROJECT_DIR"
+
+cat > app.py <<'PY'
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+MixVoucher Lite - Part 01 Core
+Standalone Telegram bot without external Python packages.
+Features:
+- Telegram long polling
+- SQLite database
+- User registration
+- Main menu similar to voucher/shop bots
+- Admin panel
+- Manage categories/products/buttons from admin
+- Enable/disable categories and products
+- Basic wallet/order placeholders
+- Broadcast placeholder
+"""
+
+import os
+import json
+import time
+import sqlite3
+import urllib.request
+import urllib.parse
+import urllib.error
+import traceback
+from datetime import datetime
+
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8979540158:AAGho_VCJlaYaggrhhcXQlAUm4KOv8sXfhU")
+DB_PATH = os.environ.get("DB_PATH", "mixvoucher_lite.db")
+OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
+
+API = f"https://api.telegram.org/bot{BOT_TOKEN}"
+STATE = {}
+
+WELCOME_TEXT = """سلام 👋
+
+به ربات فروش ووچر خوش آمدید.
+
+از منوی زیر یکی از گزینه‌ها را انتخاب کنید.
+"""
+
+HELP_TEXT = """راهنما:
+
+• از بخش خرید، دسته‌بندی‌ها و محصولات را مشاهده می‌کنید.
+• بخش هات ووچر، یو ووچر، پریمیوم و سایر موارد فعلاً از پنل ادمین قابل ساخت هستند.
+• مدیر می‌تواند از پنل ادمین دکمه/دسته/محصول بسازد.
+"""
+
+# -------------------- Telegram API --------------------
+
+def tg(method, payload=None, timeout=60):
+    payload = payload or {}
+    url = f"{API}/{method}"
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read().decode("utf-8")
+        result = json.loads(raw)
+        if not result.get("ok"):
+            raise RuntimeError(result)
+        return result["result"]
+
+def answer_callback(callback_query_id, text="", show_alert=False):
+    try:
+        return tg("answerCallbackQuery", {
+            "callback_query_id": callback_query_id,
+            "text": text,
+            "show_alert": show_alert,
+        })
+    except Exception:
+        return None
+
+def send_message(chat_id, text, reply_markup=None):
+    payload = {
+        "chat_id": chat_id,
+        "text": text[:4096],
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    return tg("sendMessage", payload)
+
+def edit_message(chat_id, message_id, text, reply_markup=None):
+    payload = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": text[:4096],
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    try:
+        return tg("editMessageText", payload)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="ignore")
+        if "message is not modified" in body:
+            return None
+        raise
+
+def delete_message(chat_id, message_id):
+    try:
+        return tg("deleteMessage", {"chat_id": chat_id, "message_id": message_id})
+    except Exception:
+        return None
+
+def kb(rows):
+    return {"inline_keyboard": rows}
+
+def btn(text, data):
+    return {"text": text, "callback_data": data}
+
+def url_btn(text, url):
+    return {"text": text, "url": url}
+
+# -------------------- Database --------------------
+
+def db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = db()
+    c = conn.cursor()
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tg_id INTEGER UNIQUE NOT NULL,
+        username TEXT,
+        first_name TEXT,
+        balance INTEGER DEFAULT 0,
+        is_blocked INTEGER DEFAULT 0,
+        is_admin INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        slug TEXT UNIQUE NOT NULL,
+        description TEXT DEFAULT '',
+        is_active INTEGER DEFAULT 1,
+        sort_order INTEGER DEFAULT 100,
+        created_at TEXT NOT NULL
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        price INTEGER DEFAULT 0,
+        stock_text TEXT DEFAULT '',
+        is_active INTEGER DEFAULT 1,
+        sort_order INTEGER DEFAULT 100,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(category_id) REFERENCES categories(id)
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_code TEXT UNIQUE NOT NULL,
+        user_id INTEGER NOT NULL,
+        product_id INTEGER,
+        amount INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'pending',
+        note TEXT DEFAULT '',
+        created_at TEXT NOT NULL
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS admin_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        admin_tg_id INTEGER NOT NULL,
+        action TEXT NOT NULL,
+        detail TEXT DEFAULT '',
+        created_at TEXT NOT NULL
+    )
+    """)
+
+    defaults = {
+        "welcome_text": WELCOME_TEXT,
+        "support_username": "@Support",
+        "channel_username": "@Channel",
+        "bot_status": "on",
+        "shop_status": "on",
+    }
+    for k, v in defaults.items():
+        c.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (k, v))
+
+    seed_categories = [
+        ("🔥 Hot Voucher", "hot_voucher", "بخش هات ووچر - محصولات را از پنل ادمین اضافه کنید.", 1, 10),
+        ("💎 Premium Voucher", "premium_voucher", "بخش پریمیوم ووچر - محصولات را از پنل ادمین اضافه کنید.", 1, 20),
+        ("🟣 U Voucher", "u_voucher", "بخش یو ووچر - محصولات را از پنل ادمین اضافه کنید.", 1, 30),
+        ("🤖 AI Services", "ai_services", "بخش سرویس‌های هوش مصنوعی - محصولات را از پنل ادمین اضافه کنید.", 1, 40),
+        ("🌐 VPN Services", "vpn_services", "بخش سرویس‌های VPN - محصولات را از پنل ادمین اضافه کنید.", 1, 50),
+        ("🖥 VPS / Server", "vps_server", "بخش سرور مجازی - محصولات را از پنل ادمین اضافه کنید.", 1, 60),
+    ]
+    for title, slug, desc, active, order in seed_categories:
+        c.execute("""
+        INSERT OR IGNORE INTO categories(title, slug, description, is_active, sort_order, created_at)
+        VALUES(?,?,?,?,?,?)
+        """, (title, slug, desc, active, order, now()))
+
+    conn.commit()
+    conn.close()
+
+def now():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+def get_setting(key, default=""):
+    conn = db()
+    row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+    conn.close()
+    return row["value"] if row else default
+
+def set_setting(key, value):
+    conn = db()
+    conn.execute("""
+    INSERT INTO settings(key,value) VALUES(?,?)
+    ON CONFLICT(key) DO UPDATE SET value=excluded.value
+    """, (key, value))
+    conn.commit()
+    conn.close()
+
+def log_admin(admin_tg_id, action, detail=""):
+    conn = db()
+    conn.execute("INSERT INTO admin_logs(admin_tg_id, action, detail, created_at) VALUES(?,?,?,?)",
+                 (admin_tg_id, action, detail, now()))
+    conn.commit()
+    conn.close()
+
+def upsert_user(message):
+    user = message.get("from", {})
+    tg_id = user.get("id")
+    username = user.get("username") or ""
+    first_name = user.get("first_name") or ""
+    conn = db()
+    conn.execute("""
+    INSERT INTO users(tg_id, username, first_name, created_at)
+    VALUES(?,?,?,?)
+    ON CONFLICT(tg_id) DO UPDATE SET username=excluded.username, first_name=excluded.first_name
+    """, (tg_id, username, first_name, now()))
+    if OWNER_ID and tg_id == OWNER_ID:
+        conn.execute("UPDATE users SET is_admin=1 WHERE tg_id=?", (tg_id,))
+    conn.commit()
+    row = conn.execute("SELECT * FROM users WHERE tg_id=?", (tg_id,)).fetchone()
+    conn.close()
+    return row
+
+def get_user(tg_id):
+    conn = db()
+    row = conn.execute("SELECT * FROM users WHERE tg_id=?", (tg_id,)).fetchone()
+    conn.close()
+    return row
+
+def is_admin(tg_id):
+    u = get_user(tg_id)
+    return bool(u and u["is_admin"])
+
+def require_admin(tg_id):
+    if not is_admin(tg_id):
+        raise PermissionError("admin required")
+
+def stats():
+    conn = db()
+    data = {}
+    for name, query in {
+        "users": "SELECT COUNT(*) n FROM users",
+        "admins": "SELECT COUNT(*) n FROM users WHERE is_admin=1",
+        "blocked": "SELECT COUNT(*) n FROM users WHERE is_blocked=1",
+        "categories": "SELECT COUNT(*) n FROM categories",
+        "products": "SELECT COUNT(*) n FROM products",
+        "orders": "SELECT COUNT(*) n FROM orders",
+        "pending_orders": "SELECT COUNT(*) n FROM orders WHERE status='pending'",
+    }.items():
+        data[name] = conn.execute(query).fetchone()["n"]
+    conn.close()
+    return data
+
+# -------------------- User Keyboards --------------------
+
+def main_menu():
+    return kb([
+        [btn("🛒 خرید", "buy_menu"), btn("👤 حساب کاربری", "profile")],
+        [btn("💰 کیف پول", "wallet"), btn("📦 سفارش‌های من", "my_orders")],
+        [btn("📞 پشتیبانی", "support"), btn("📚 راهنما", "help")],
+    ])
+
+def back_main():
+    return kb([[btn("🔙 بازگشت به منوی اصلی", "main")]])
+
+def categories_menu():
+    conn = db()
+    rows = conn.execute("""
+    SELECT * FROM categories
+    WHERE is_active=1
+    ORDER BY sort_order ASC, id ASC
+    """).fetchall()
+    conn.close()
+
+    keyboard = []
+    line = []
+    for cat in rows:
+        line.append(btn(cat["title"], f"cat:{cat['id']}"))
+        if len(line) == 2:
+            keyboard.append(line)
+            line = []
+    if line:
+        keyboard.append(line)
+    keyboard.append([btn("🔙 بازگشت", "main")])
+    return kb(keyboard)
+
+def products_menu(category_id):
+    conn = db()
+    cat = conn.execute("SELECT * FROM categories WHERE id=?", (category_id,)).fetchone()
+    products = conn.execute("""
+    SELECT * FROM products
+    WHERE category_id=? AND is_active=1
+    ORDER BY sort_order ASC, id ASC
+    """, (category_id,)).fetchall()
+    conn.close()
+
+    keyboard = []
+    for p in products:
+        price = f"{p['price']:,}" if p["price"] else "رایگان/توافقی"
+        keyboard.append([btn(f"{p['title']} | {price}", f"product:{p['id']}")])
+    keyboard.append([btn("🔙 دسته‌بندی‌ها", "buy_menu"), btn("🏠 خانه", "main")])
+    return cat, kb(keyboard)
+
+# -------------------- Admin Keyboards --------------------
+
+def admin_menu():
+    return kb([
+        [btn("📊 آمار", "admin:stats"), btn("🧩 دسته‌بندی‌ها", "admin:cats")],
+        [btn("📦 محصولات", "admin:products"), btn("👥 کاربران", "admin:users")],
+        [btn("⚙️ تنظیمات", "admin:settings"), btn("📣 پیام همگانی", "admin:broadcast")],
+        [btn("🧾 سفارش‌ها", "admin:orders"), btn("🧹 پاکسازی وضعیت", "admin:clear_state")],
+        [btn("🏠 منوی کاربر", "main")],
+    ])
+
+def admin_back():
+    return kb([[btn("🔙 پنل ادمین", "admin:home")]])
+
+def admin_cats_menu():
+    conn = db()
+    cats = conn.execute("SELECT * FROM categories ORDER BY sort_order ASC, id ASC").fetchall()
+    conn.close()
+    rows = [[btn("➕ افزودن دسته‌بندی", "admin:cat_add")]]
+    for c in cats:
+        status = "✅" if c["is_active"] else "❌"
+        rows.append([btn(f"{status} {c['title']}", f"admin:cat:{c['id']}")])
+    rows.append([btn("🔙 پنل ادمین", "admin:home")])
+    return kb(rows)
+
+def admin_cat_detail_menu(cat_id):
+    return kb([
+        [btn("✏️ تغییر نام", f"admin:cat_rename:{cat_id}")],
+        [btn("📝 تغییر توضیح", f"admin:cat_desc:{cat_id}")],
+        [btn("🔁 فعال/غیرفعال", f"admin:cat_toggle:{cat_id}")],
+        [btn("➕ افزودن محصول به این دسته", f"admin:prod_add_to:{cat_id}")],
+        [btn("🗑 حذف دسته", f"admin:cat_delete_confirm:{cat_id}")],
+        [btn("🔙 دسته‌بندی‌ها", "admin:cats")],
+    ])
+
+def admin_products_menu():
+    conn = db()
+    products = conn.execute("""
+    SELECT p.*, c.title cat_title FROM products p
+    LEFT JOIN categories c ON c.id=p.category_id
+    ORDER BY p.id DESC LIMIT 50
+    """).fetchall()
+    conn.close()
+    rows = [[btn("➕ افزودن محصول", "admin:prod_choose_cat")]]
+    for p in products:
+        status = "✅" if p["is_active"] else "❌"
+        rows.append([btn(f"{status} #{p['id']} {p['title']}", f"admin:prod:{p['id']}")])
+    rows.append([btn("🔙 پنل ادمین", "admin:home")])
+    return kb(rows)
+
+def admin_product_detail_menu(prod_id):
+    return kb([
+        [btn("✏️ تغییر نام", f"admin:prod_rename:{prod_id}"), btn("💰 تغییر قیمت", f"admin:prod_price:{prod_id}")],
+        [btn("📝 توضیح", f"admin:prod_desc:{prod_id}"), btn("📦 متن موجودی", f"admin:prod_stock:{prod_id}")],
+        [btn("🔁 فعال/غیرفعال", f"admin:prod_toggle:{prod_id}")],
+        [btn("🗑 حذف محصول", f"admin:prod_delete_confirm:{prod_id}")],
+        [btn("🔙 محصولات", "admin:products")],
+    ])
+
+def admin_choose_cat_for_product():
+    conn = db()
+    cats = conn.execute("SELECT * FROM categories ORDER BY sort_order ASC,id ASC").fetchall()
+    conn.close()
+    rows = []
+    for c in cats:
+        rows.append([btn(c["title"], f"admin:prod_add_to:{c['id']}")])
+    rows.append([btn("🔙 محصولات", "admin:products")])
+    return kb(rows)
+
+def admin_settings_menu():
+    bot_status = get_setting("bot_status", "on")
+    shop_status = get_setting("shop_status", "on")
+    return kb([
+        [btn(f"🤖 وضعیت ربات: {bot_status}", "admin:toggle_bot")],
+        [btn(f"🛒 وضعیت فروشگاه: {shop_status}", "admin:toggle_shop")],
+        [btn("📝 متن شروع", "admin:set_welcome")],
+        [btn("📞 پشتیبانی", "admin:set_support")],
+        [btn("📢 کانال", "admin:set_channel")],
+        [btn("🔙 پنل ادمین", "admin:home")],
+    ])
+
+# -------------------- Text Render --------------------
+
+def render_profile(user):
+    username = f"@{user['username']}" if user["username"] else "ندارد"
+    return f"""👤 <b>حساب کاربری</b>
+
+آیدی عددی: <code>{user['tg_id']}</code>
+نام: {user['first_name'] or '-'}
+یوزرنیم: {username}
+موجودی: <b>{user['balance']:,}</b> تومان
+تاریخ عضویت: {user['created_at']}
+"""
+
+def render_wallet(user):
+    return f"""💰 <b>کیف پول</b>
+
+موجودی فعلی شما:
+<b>{user['balance']:,}</b> تومان
+
+فعلاً در نسخه اول، شارژ کیف پول به‌صورت placeholder است.
+در مرحله‌های بعدی می‌شود کارت‌به‌کارت، رسید، تأیید ادمین و درگاه اضافه کرد.
+"""
+
+def render_category(cat):
+    return f"""🛒 <b>{cat['title']}</b>
+
+{cat['description'] or 'محصولی برای این بخش ثبت نشده است.'}
+
+از لیست زیر محصول موردنظر را انتخاب کنید.
+"""
+
+def render_product(p):
+    price = f"{p['price']:,} تومان" if p["price"] else "رایگان/توافقی"
+    stock = p["stock_text"] or "موجودی/تحویل توسط ادمین تنظیم نشده است."
+    return f"""📦 <b>{p['title']}</b>
+
+💰 قیمت: <b>{price}</b>
+
+📝 توضیحات:
+{p['description'] or '-'}
+
+📌 وضعیت/موجودی:
+{stock}
+
+برای تکمیل خرید، در نسخه‌های بعدی مسیر سفارش و پرداخت تکمیل می‌شود.
+"""
+
+def render_admin_home():
+    s = stats()
+    return f"""👑 <b>پنل مدیریت</b>
+
+📊 کاربران: <b>{s['users']}</b>
+👑 ادمین‌ها: <b>{s['admins']}</b>
+🚫 مسدودها: <b>{s['blocked']}</b>
+🧩 دسته‌بندی‌ها: <b>{s['categories']}</b>
+📦 محصولات: <b>{s['products']}</b>
+🧾 سفارش‌ها: <b>{s['orders']}</b>
+⏳ سفارش‌های pending: <b>{s['pending_orders']}</b>
+
+از دکمه‌های زیر مدیریت کن.
+"""
+
+# -------------------- State Helpers --------------------
+
+def set_state(tg_id, name, data=None):
+    STATE[tg_id] = {"name": name, "data": data or {}, "time": time.time()}
+
+def clear_state(tg_id):
+    STATE.pop(tg_id, None)
+
+def get_state(tg_id):
+    return STATE.get(tg_id)
+
+# -------------------- User Actions --------------------
+
+def open_main(chat_id, message_id=None):
+    text = get_setting("welcome_text", WELCOME_TEXT)
+    if message_id:
+        edit_message(chat_id, message_id, text, main_menu())
+    else:
+        send_message(chat_id, text, main_menu())
+
+def handle_user_callback(chat_id, message_id, tg_id, data):
+    user = get_user(tg_id)
+
+    if data == "main":
+        clear_state(tg_id)
+        return open_main(chat_id, message_id)
+
+    if data == "buy_menu":
+        if get_setting("shop_status", "on") != "on":
+            return edit_message(chat_id, message_id, "🛒 فروشگاه فعلاً غیرفعال است.", back_main())
+        return edit_message(chat_id, message_id, "🛒 <b>بخش خرید</b>\n\nیک دسته‌بندی را انتخاب کنید:", categories_menu())
+
+    if data.startswith("cat:"):
+        cat_id = int(data.split(":")[1])
+        cat, keyboard = products_menu(cat_id)
+        if not cat:
+            return edit_message(chat_id, message_id, "دسته‌بندی پیدا نشد.", back_main())
+        return edit_message(chat_id, message_id, render_category(cat), keyboard)
+
+    if data.startswith("product:"):
+        prod_id = int(data.split(":")[1])
+        conn = db()
+        p = conn.execute("SELECT * FROM products WHERE id=? AND is_active=1", (prod_id,)).fetchone()
+        conn.close()
+        if not p:
+            return edit_message(chat_id, message_id, "محصول پیدا نشد یا غیرفعال است.", back_main())
+        return edit_message(chat_id, message_id, render_product(p), kb([
+            [btn("🛒 ثبت سفارش آزمایشی", f"order_test:{prod_id}")],
+            [btn("🔙 برگشت", f"cat:{p['category_id']}"), btn("🏠 خانه", "main")]
+        ]))
+
+    if data.startswith("order_test:"):
+        prod_id = int(data.split(":")[1])
+        code = f"MV-{int(time.time())}-{tg_id % 10000}"
+        conn = db()
+        p = conn.execute("SELECT * FROM products WHERE id=?", (prod_id,)).fetchone()
+        if not p:
+            conn.close()
+            return edit_message(chat_id, message_id, "محصول پیدا نشد.", back_main())
+        conn.execute("""
+        INSERT INTO orders(order_code,user_id,product_id,amount,status,note,created_at)
+        VALUES(?,?,?,?,?,?,?)
+        """, (code, tg_id, prod_id, p["price"], "pending", "سفارش آزمایشی نسخه اول", now()))
+        conn.commit()
+        conn.close()
+        return edit_message(chat_id, message_id,
+            f"✅ سفارش آزمایشی ثبت شد.\n\nکد سفارش: <code>{code}</code>\nوضعیت: pending",
+            back_main()
+        )
+
+    if data == "profile":
+        return edit_message(chat_id, message_id, render_profile(user), back_main())
+
+    if data == "wallet":
+        return edit_message(chat_id, message_id, render_wallet(user), back_main())
+
+    if data == "my_orders":
+        conn = db()
+        rows = conn.execute("""
+        SELECT o.*, p.title product_title FROM orders o
+        LEFT JOIN products p ON p.id=o.product_id
+        WHERE o.user_id=?
+        ORDER BY o.id DESC LIMIT 10
+        """, (tg_id,)).fetchall()
+        conn.close()
+        if not rows:
+            text = "📦 شما هنوز سفارشی ندارید."
+        else:
+            lines = ["📦 <b>آخرین سفارش‌های شما</b>\n"]
+            for o in rows:
+                lines.append(f"• <code>{o['order_code']}</code> | {o['product_title'] or '-'} | {o['status']}")
+            text = "\n".join(lines)
+        return edit_message(chat_id, message_id, text, back_main())
+
+    if data == "support":
+        support = get_setting("support_username", "@Support")
+        channel = get_setting("channel_username", "@Channel")
+        return edit_message(chat_id, message_id,
+            f"📞 <b>پشتیبانی</b>\n\nSupport: {support}\nChannel: {channel}",
+            back_main()
+        )
+
+    if data == "help":
+        return edit_message(chat_id, message_id, HELP_TEXT, back_main())
+
+# -------------------- Admin Actions --------------------
+
+def handle_admin_callback(chat_id, message_id, tg_id, data):
+    require_admin(tg_id)
+
+    if data == "admin:home":
+        clear_state(tg_id)
+        return edit_message(chat_id, message_id, render_admin_home(), admin_menu())
+
+    if data == "admin:stats":
+        return edit_message(chat_id, message_id, render_admin_home(), admin_menu())
+
+    if data == "admin:cats":
+        return edit_message(chat_id, message_id, "🧩 <b>مدیریت دسته‌بندی‌ها</b>", admin_cats_menu())
+
+    if data == "admin:cat_add":
+        set_state(tg_id, "cat_add_title")
+        return edit_message(chat_id, message_id, "نام دسته‌بندی جدید را ارسال کن:", admin_back())
+
+    if data.startswith("admin:cat:"):
+        cat_id = int(data.split(":")[2])
+        conn = db()
+        cat = conn.execute("SELECT * FROM categories WHERE id=?", (cat_id,)).fetchone()
+        conn.close()
+        if not cat:
+            return edit_message(chat_id, message_id, "دسته‌بندی پیدا نشد.", admin_cats_menu())
+        status = "فعال ✅" if cat["is_active"] else "غیرفعال ❌"
+        text = f"""🧩 <b>{cat['title']}</b>
+
+ID: <code>{cat['id']}</code>
+Slug: <code>{cat['slug']}</code>
+وضعیت: {status}
+ترتیب: {cat['sort_order']}
+
+توضیح:
+{cat['description'] or '-'}
+"""
+        return edit_message(chat_id, message_id, text, admin_cat_detail_menu(cat_id))
+
+    if data.startswith("admin:cat_rename:"):
+        cat_id = int(data.split(":")[2])
+        set_state(tg_id, "cat_rename", {"cat_id": cat_id})
+        return edit_message(chat_id, message_id, "نام جدید دسته‌بندی را ارسال کن:", admin_back())
+
+    if data.startswith("admin:cat_desc:"):
+        cat_id = int(data.split(":")[2])
+        set_state(tg_id, "cat_desc", {"cat_id": cat_id})
+        return edit_message(chat_id, message_id, "توضیح جدید دسته‌بندی را ارسال کن:", admin_back())
+
+    if data.startswith("admin:cat_toggle:"):
+        cat_id = int(data.split(":")[2])
+        conn = db()
+        conn.execute("UPDATE categories SET is_active=CASE WHEN is_active=1 THEN 0 ELSE 1 END WHERE id=?", (cat_id,))
+        conn.commit()
+        conn.close()
+        log_admin(tg_id, "cat_toggle", str(cat_id))
+        return edit_message(chat_id, message_id, "وضعیت دسته‌بندی تغییر کرد.", admin_cats_menu())
+
+    if data.startswith("admin:cat_delete_confirm:"):
+        cat_id = int(data.split(":")[2])
+        return edit_message(chat_id, message_id, "آیا از حذف این دسته مطمئنی؟ محصولاتش هم حذف می‌شوند.", kb([
+            [btn("✅ بله حذف کن", f"admin:cat_delete:{cat_id}")],
+            [btn("❌ انصراف", f"admin:cat:{cat_id}")],
+        ]))
+
+    if data.startswith("admin:cat_delete:"):
+        cat_id = int(data.split(":")[2])
+        conn = db()
+        conn.execute("DELETE FROM products WHERE category_id=?", (cat_id,))
+        conn.execute("DELETE FROM categories WHERE id=?", (cat_id,))
+        conn.commit()
+        conn.close()
+        log_admin(tg_id, "cat_delete", str(cat_id))
+        return edit_message(chat_id, message_id, "دسته‌بندی حذف شد.", admin_cats_menu())
+
+    if data == "admin:products":
+        return edit_message(chat_id, message_id, "📦 <b>مدیریت محصولات</b>", admin_products_menu())
+
+    if data == "admin:prod_choose_cat":
+        return edit_message(chat_id, message_id, "اول دسته‌بندی محصول را انتخاب کن:", admin_choose_cat_for_product())
+
+    if data.startswith("admin:prod_add_to:"):
+        cat_id = int(data.split(":")[2])
+        set_state(tg_id, "prod_add_title", {"cat_id": cat_id})
+        return edit_message(chat_id, message_id, "نام محصول جدید را ارسال کن:", admin_back())
+
+    if data.startswith("admin:prod:"):
+        prod_id = int(data.split(":")[2])
+        conn = db()
+        p = conn.execute("""
+        SELECT p.*, c.title cat_title FROM products p
+        LEFT JOIN categories c ON c.id=p.category_id
+        WHERE p.id=?
+        """, (prod_id,)).fetchone()
+        conn.close()
+        if not p:
+            return edit_message(chat_id, message_id, "محصول پیدا نشد.", admin_products_menu())
+        status = "فعال ✅" if p["is_active"] else "غیرفعال ❌"
+        text = f"""📦 <b>{p['title']}</b>
+
+ID: <code>{p['id']}</code>
+دسته: {p['cat_title'] or '-'}
+قیمت: <b>{p['price']:,}</b> تومان
+وضعیت: {status}
+
+توضیح:
+{p['description'] or '-'}
+
+موجودی/متن تحویل:
+{p['stock_text'] or '-'}
+"""
+        return edit_message(chat_id, message_id, text, admin_product_detail_menu(prod_id))
+
+    if data.startswith("admin:prod_rename:"):
+        prod_id = int(data.split(":")[2])
+        set_state(tg_id, "prod_rename", {"prod_id": prod_id})
+        return edit_message(chat_id, message_id, "نام جدید محصول را ارسال کن:", admin_back())
+
+    if data.startswith("admin:prod_price:"):
+        prod_id = int(data.split(":")[2])
+        set_state(tg_id, "prod_price", {"prod_id": prod_id})
+        return edit_message(chat_id, message_id, "قیمت جدید را به تومان و فقط عددی ارسال کن:", admin_back())
+
+    if data.startswith("admin:prod_desc:"):
+        prod_id = int(data.split(":")[2])
+        set_state(tg_id, "prod_desc", {"prod_id": prod_id})
+        return edit_message(chat_id, message_id, "توضیح جدید محصول را ارسال کن:", admin_back())
+
+    if data.startswith("admin:prod_stock:"):
+        prod_id = int(data.split(":")[2])
+        set_state(tg_id, "prod_stock", {"prod_id": prod_id})
+        return edit_message(chat_id, message_id, "متن موجودی/تحویل محصول را ارسال کن:", admin_back())
+
+    if data.startswith("admin:prod_toggle:"):
+        prod_id = int(data.split(":")[2])
+        conn = db()
+        conn.execute("UPDATE products SET is_active=CASE WHEN is_active=1 THEN 0 ELSE 1 END WHERE id=?", (prod_id,))
+        conn.commit()
+        conn.close()
+        log_admin(tg_id, "prod_toggle", str(prod_id))
+        return edit_message(chat_id, message_id, "وضعیت محصول تغییر کرد.", admin_products_menu())
+
+    if data.startswith("admin:prod_delete_confirm:"):
+        prod_id = int(data.split(":")[2])
+        return edit_message(chat_id, message_id, "آیا از حذف محصول مطمئنی؟", kb([
+            [btn("✅ بله حذف کن", f"admin:prod_delete:{prod_id}")],
+            [btn("❌ انصراف", f"admin:prod:{prod_id}")],
+        ]))
+
+    if data.startswith("admin:prod_delete:"):
+        prod_id = int(data.split(":")[2])
+        conn = db()
+        conn.execute("DELETE FROM products WHERE id=?", (prod_id,))
+        conn.commit()
+        conn.close()
+        log_admin(tg_id, "prod_delete", str(prod_id))
+        return edit_message(chat_id, message_id, "محصول حذف شد.", admin_products_menu())
+
+    if data == "admin:users":
+        conn = db()
+        rows = conn.execute("SELECT * FROM users ORDER BY id DESC LIMIT 20").fetchall()
+        conn.close()
+        lines = ["👥 <b>آخرین کاربران</b>\n"]
+        for u in rows:
+            admin_mark = "👑" if u["is_admin"] else ""
+            block_mark = "🚫" if u["is_blocked"] else ""
+            lines.append(f"{admin_mark}{block_mark} <code>{u['tg_id']}</code> | {u['first_name'] or '-'} | @{u['username'] or '-'}")
+        return edit_message(chat_id, message_id, "\n".join(lines), admin_back())
+
+    if data == "admin:orders":
+        conn = db()
+        rows = conn.execute("""
+        SELECT o.*, p.title product_title FROM orders o
+        LEFT JOIN products p ON p.id=o.product_id
+        ORDER BY o.id DESC LIMIT 20
+        """).fetchall()
+        conn.close()
+        if not rows:
+            text = "🧾 سفارشی ثبت نشده است."
+        else:
+            lines = ["🧾 <b>آخرین سفارش‌ها</b>\n"]
+            for o in rows:
+                lines.append(f"• <code>{o['order_code']}</code> | user:{o['user_id']} | {o['product_title'] or '-'} | {o['status']}")
+            text = "\n".join(lines)
+        return edit_message(chat_id, message_id, text, admin_back())
+
+    if data == "admin:settings":
+        return edit_message(chat_id, message_id, "⚙️ <b>تنظیمات</b>", admin_settings_menu())
+
+    if data == "admin:toggle_bot":
+        cur = get_setting("bot_status", "on")
+        set_setting("bot_status", "off" if cur == "on" else "on")
+        return edit_message(chat_id, message_id, "⚙️ <b>تنظیمات</b>", admin_settings_menu())
+
+    if data == "admin:toggle_shop":
+        cur = get_setting("shop_status", "on")
+        set_setting("shop_status", "off" if cur == "on" else "on")
+        return edit_message(chat_id, message_id, "⚙️ <b>تنظیمات</b>", admin_settings_menu())
+
+    if data == "admin:set_welcome":
+        set_state(tg_id, "set_welcome")
+        return edit_message(chat_id, message_id, "متن جدید /start را ارسال کن:", admin_back())
+
+    if data == "admin:set_support":
+        set_state(tg_id, "set_support")
+        return edit_message(chat_id, message_id, "یوزرنیم پشتیبانی را ارسال کن. مثال: @Rafturn", admin_back())
+
+    if data == "admin:set_channel":
+        set_state(tg_id, "set_channel")
+        return edit_message(chat_id, message_id, "یوزرنیم کانال را ارسال کن. مثال: @channel", admin_back())
+
+    if data == "admin:broadcast":
+        set_state(tg_id, "broadcast")
+        return edit_message(chat_id, message_id, "متن پیام همگانی را ارسال کن:", admin_back())
+
+    if data == "admin:clear_state":
+        clear_state(tg_id)
+        return edit_message(chat_id, message_id, "وضعیت موقت پاک شد.", admin_menu())
+
+# -------------------- State Text Handlers --------------------
+
+def handle_state_message(chat_id, tg_id, text):
+    st = get_state(tg_id)
+    if not st:
+        return False
+    name = st["name"]
+    data = st.get("data") or {}
+
+    if not is_admin(tg_id):
+        clear_state(tg_id)
+        return False
+
+    conn = db()
+
+    try:
+        if name == "cat_add_title":
+            slug = "cat_" + str(int(time.time()))
+            conn.execute("""
+            INSERT INTO categories(title,slug,description,is_active,sort_order,created_at)
+            VALUES(?,?,?,?,?,?)
+            """, (text.strip(), slug, "", 1, 100, now()))
+            conn.commit()
+            log_admin(tg_id, "cat_add", text)
+            send_message(chat_id, "✅ دسته‌بندی اضافه شد.", admin_cats_menu())
+            return True
+
+        if name == "cat_rename":
+            conn.execute("UPDATE categories SET title=? WHERE id=?", (text.strip(), data["cat_id"]))
+            conn.commit()
+            log_admin(tg_id, "cat_rename", str(data["cat_id"]))
+            send_message(chat_id, "✅ نام دسته‌بندی تغییر کرد.", admin_cats_menu())
+            return True
+
+        if name == "cat_desc":
+            conn.execute("UPDATE categories SET description=? WHERE id=?", (text.strip(), data["cat_id"]))
+            conn.commit()
+            log_admin(tg_id, "cat_desc", str(data["cat_id"]))
+            send_message(chat_id, "✅ توضیح دسته‌بندی تغییر کرد.", admin_cats_menu())
+            return True
+
+        if name == "prod_add_title":
+            conn.execute("""
+            INSERT INTO products(category_id,title,description,price,stock_text,is_active,sort_order,created_at)
+            VALUES(?,?,?,?,?,?,?,?)
+            """, (data["cat_id"], text.strip(), "", 0, "", 1, 100, now()))
+            conn.commit()
+            log_admin(tg_id, "prod_add", text)
+            send_message(chat_id, "✅ محصول اضافه شد. از بخش محصولات می‌توانی قیمت و توضیح بدهی.", admin_products_menu())
+            return True
+
+        if name == "prod_rename":
+            conn.execute("UPDATE products SET title=? WHERE id=?", (text.strip(), data["prod_id"]))
+            conn.commit()
+            log_admin(tg_id, "prod_rename", str(data["prod_id"]))
+            send_message(chat_id, "✅ نام محصول تغییر کرد.", admin_products_menu())
+            return True
+
+        if name == "prod_price":
+            digits = "".join(ch for ch in text if ch.isdigit())
+            price = int(digits or "0")
+            conn.execute("UPDATE products SET price=? WHERE id=?", (price, data["prod_id"]))
+            conn.commit()
+            log_admin(tg_id, "prod_price", f"{data['prod_id']}={price}")
+            send_message(chat_id, "✅ قیمت محصول تغییر کرد.", admin_products_menu())
+            return True
+
+        if name == "prod_desc":
+            conn.execute("UPDATE products SET description=? WHERE id=?", (text.strip(), data["prod_id"]))
+            conn.commit()
+            log_admin(tg_id, "prod_desc", str(data["prod_id"]))
+            send_message(chat_id, "✅ توضیح محصول تغییر کرد.", admin_products_menu())
+            return True
+
+        if name == "prod_stock":
+            conn.execute("UPDATE products SET stock_text=? WHERE id=?", (text.strip(), data["prod_id"]))
+            conn.commit()
+            log_admin(tg_id, "prod_stock", str(data["prod_id"]))
+            send_message(chat_id, "✅ متن موجودی/تحویل تغییر کرد.", admin_products_menu())
+            return True
+
+        if name == "set_welcome":
+            set_setting("welcome_text", text.strip())
+            log_admin(tg_id, "set_welcome")
+            send_message(chat_id, "✅ متن شروع تغییر کرد.", admin_settings_menu())
+            return True
+
+        if name == "set_support":
+            set_setting("support_username", text.strip())
+            log_admin(tg_id, "set_support", text)
+            send_message(chat_id, "✅ پشتیبانی تغییر کرد.", admin_settings_menu())
+            return True
+
+        if name == "set_channel":
+            set_setting("channel_username", text.strip())
+            log_admin(tg_id, "set_channel", text)
+            send_message(chat_id, "✅ کانال تغییر کرد.", admin_settings_menu())
+            return True
+
+        if name == "broadcast":
+            users = conn.execute("SELECT tg_id FROM users WHERE is_blocked=0").fetchall()
+            clear_state(tg_id)
+            conn.close()
+            ok = 0
+            fail = 0
+            send_message(chat_id, f"📣 شروع ارسال به {len(users)} کاربر...")
+            for u in users:
+                try:
+                    send_message(u["tg_id"], text)
+                    ok += 1
+                    time.sleep(0.05)
+                except Exception:
+                    fail += 1
+            log_admin(tg_id, "broadcast", f"ok={ok}, fail={fail}")
+            send_message(chat_id, f"✅ ارسال تمام شد.\nموفق: {ok}\nناموفق: {fail}", admin_menu())
+            return True
+
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        clear_state(tg_id)
+
+    return False
+
+# -------------------- Message Dispatcher --------------------
+
+def handle_message(message):
+    user = upsert_user(message)
+    chat_id = message["chat"]["id"]
+    tg_id = message["from"]["id"]
+    text = message.get("text", "")
+
+    if user["is_blocked"]:
+        return send_message(chat_id, "🚫 دسترسی شما به ربات مسدود شده است.")
+
+    if get_setting("bot_status", "on") != "on" and not is_admin(tg_id):
+        return send_message(chat_id, "ربات فعلاً غیرفعال است.")
+
+    if text == "/start":
+        clear_state(tg_id)
+        return open_main(chat_id)
+
+    if text == "/help":
+        return send_message(chat_id, HELP_TEXT, back_main())
+
+    if text == "/claim_admin":
+        conn = db()
+        count = conn.execute("SELECT COUNT(*) n FROM users WHERE is_admin=1").fetchone()["n"]
+        if count == 0 or (OWNER_ID and tg_id == OWNER_ID):
+            conn.execute("UPDATE users SET is_admin=1 WHERE tg_id=?", (tg_id,))
+            conn.commit()
+            conn.close()
+            return send_message(chat_id, "✅ شما ادمین شدید.\nحالا /admin را بزنید.")
+        conn.close()
+        return send_message(chat_id, "❌ ادمین قبلاً ثبت شده است.")
+
+    if text == "/admin":
+        if not is_admin(tg_id):
+            return send_message(chat_id, "❌ شما ادمین نیستید.\nاگر اولین اجراست، /claim_admin را بزنید.")
+        clear_state(tg_id)
+        return send_message(chat_id, render_admin_home(), admin_menu())
+
+    if handle_state_message(chat_id, tg_id, text):
+        return
+
+    return send_message(chat_id, "از منوی زیر استفاده کنید:", main_menu())
+
+def handle_callback(callback):
+    cq_id = callback["id"]
+    message = callback.get("message", {})
+    chat_id = message.get("chat", {}).get("id")
+    message_id = message.get("message_id")
+    tg_id = callback["from"]["id"]
+    data = callback.get("data", "")
+
+    answer_callback(cq_id)
+
+    fake_msg = {"from": callback["from"], "chat": message.get("chat", {})}
+    upsert_user(fake_msg)
+
+    try:
+        if data.startswith("admin:"):
+            return handle_admin_callback(chat_id, message_id, tg_id, data)
+        return handle_user_callback(chat_id, message_id, tg_id, data)
+    except PermissionError:
+        return edit_message(chat_id, message_id, "❌ دسترسی ادمین ندارید.", back_main())
+
+def polling_loop():
+    print("MixVoucher Lite Part 01 is running...")
+    print("Use /claim_admin for first admin, then /admin")
+    offset = 0
+
+    while True:
+        try:
+            updates = tg("getUpdates", {
+                "timeout": 30,
+                "offset": offset,
+                "allowed_updates": ["message", "callback_query"],
+            }, timeout=45)
+
+            for upd in updates:
+                offset = upd["update_id"] + 1
+                try:
+                    if "message" in upd:
+                        handle_message(upd["message"])
+                    elif "callback_query" in upd:
+                        handle_callback(upd["callback_query"])
+                except Exception as inner:
+                    print("UPDATE ERROR:", repr(inner))
+                    traceback.print_exc()
+
+        except KeyboardInterrupt:
+            print("Stopped.")
+            break
+        except Exception as e:
+            print("POLLING ERROR:", repr(e))
+            time.sleep(5)
+
+def main():
+    init_db()
+    polling_loop()
+
+if __name__ == "__main__":
+    main()
+
+PY
+
+cat > README_RUN.txt <<'TXT'
+MixVoucher Lite - Part 01 Core
+
+Run:
+  cd mvlite_bot
+  python app.py
+
+First admin:
+  1) Start the bot in Telegram.
+  2) Send /claim_admin
+  3) Send /admin
+
+Important:
+  The token inside app.py is the fake token you provided.
+  For real usage, run with:
+    export BOT_TOKEN="REAL_TOKEN"
+    python app.py
+
+No pip install needed.
+This bot uses only Python standard library.
+TXT
+
+echo "Done: $PROJECT_DIR created."
+echo "Run:"
+echo "  cd $PROJECT_DIR"
+echo "  python app.py"

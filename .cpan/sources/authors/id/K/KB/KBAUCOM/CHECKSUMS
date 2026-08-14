@@ -1,0 +1,188 @@
+0&&<<''; # this PGP-signed message is also valid perl
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA1
+
+# CHECKSUMS file written on Mon Nov 22 00:44:18 2021 GMT by CPAN::Checksums (v2.13)
+$cksum = {
+  'Image-Embroidery-1.2.meta' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => 'a2358e64655e2cab918a37a7eecaffa6',
+    'mtime' => '2007-11-03',
+    'sha256' => '94c0b0e8cbe404e393ff3e9e7a8f644fe98a2336f3852a7e97c7235253ceca5e',
+    'size' => 446
+  },
+  'Image-Embroidery-1.2.tar.gz' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => 'ad6b98fd1f192bbd1fc859bb0e985d78',
+    'md5-ungz' => '73fcb483b6952f75fcdfc4cf0c181e8a',
+    'mtime' => '2007-11-03',
+    'sha256' => 'ce58fa587aa079643c087575c5ce4207f12b3a77f71d4998bd3dbd7a7f75198a',
+    'sha256-ungz' => '82d54045837658c595f331df18061ce3eb66f25a4ded8ef63f218d850219313b',
+    'size' => 17919
+  },
+  'Term-Animation-1.1.tar.gz' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => '738fd0ee8ab9fe26eb58fb79b657c692',
+    'md5-ungz' => '71c2869aaa0bf929b3547cbd15b1efe1',
+    'mtime' => '2004-08-02',
+    'sha256' => 'f807c0cb21e8846b61d61ea8fe4d09ea67fff799092291302a215c72cff2808c',
+    'sha256-ungz' => '56a46b6e4673d48b3745d258e8964dd4b88e081bd789e93f350fae5b194a9aec',
+    'size' => 13891
+  },
+  'Term-Animation-2.4.meta' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => '0cc8321c002a3a6e01a3a061a1100a6f',
+    'mtime' => '2006-12-17',
+    'sha256' => '1b52764a9cd0b76fe5f76d9e96341b453ad1fb0f4855ad64a3e36ef114edbb98',
+    'size' => 365
+  },
+  'Term-Animation-2.4.tar.gz' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => '92799819f87f38cdbccf4c215e49b4cb',
+    'md5-ungz' => '253f114f649b33995f53fda20303f1f7',
+    'mtime' => '2006-12-17',
+    'sha256' => 'fa1004fca4425e7ad9da7c7c63a57412b7bdc9d858eb8ef4dfab67948d875dc4',
+    'sha256-ungz' => '8c19b107923905b30eca42c9d3aa0ea337b2fa7146a3170e170b097bda22f593',
+    'size' => 18785
+  },
+  'Term-Animation-2.5.meta' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => '427136eb22bdf554d3a76ac42693b8d3',
+    'mtime' => '2011-03-26',
+    'sha256' => '97e55c7aa546958eea3ebd8132103078379b57d812cc15420efe9c06b20a1a7e',
+    'size' => 556
+  },
+  'Term-Animation-2.5.tar.gz' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => 'a541d7ac593c3261582df477d3d2c720',
+    'md5-ungz' => '44c243d09304aab67106054d367ff2de',
+    'mtime' => '2011-03-26',
+    'sha256' => '9ba15e20ce911127b1a7ac8e092de25ef46fa6b025a2878aef0dae55ce80b877',
+    'sha256-ungz' => '215f61d141aa47e96f2e9a0525707760fff5a7e87bf28cca877789975a30bd6e',
+    'size' => 19506
+  },
+  'Term-Animation-2.6.meta' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => 'e5c6f17cf1a62539b6bff5b93554fa24',
+    'mtime' => '2011-03-29',
+    'sha256' => '7f783bce46eb5620be49b212b4e498e59d589ca0363ec32c810dce4b4fbd3a09',
+    'size' => 556
+  },
+  'Term-Animation-2.6.tar.gz' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => 'd22643b339495cfc0a4f0b405dbae1d1',
+    'md5-ungz' => '596df0754a558465eca55b4d18ee9bcc',
+    'mtime' => '2011-03-29',
+    'sha256' => '7d5c3c2d4f9b657a8b1dce7f5e2cbbe02ada2e97c72f3a0304bf3c99d084b045',
+    'sha256-ungz' => '21d4aad7c22bf47d2d900a716a6ecc889d4dc96a20147ecb9f3e39772eb2ec83',
+    'size' => 19395
+  },
+  'Text-BarGraph-1.0.meta' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => '3f63df0e9d1b300e158b9ddf70fda1da',
+    'mtime' => '2005-11-02',
+    'sha256' => '59effcbe5bc22b73e2524d11e17d2972b921d828b5aaedaa40eb5682c1fffb05',
+    'size' => 307
+  },
+  'Text-BarGraph-1.0.tar.gz' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => '3c9acfe1dcf63bc0f3f53048fc5b1128',
+    'md5-ungz' => '6ef6b04aa536dc80cd2e541413291508',
+    'mtime' => '2005-11-02',
+    'sha256' => '994e97470787c475abb9f569ab06c38b66c80bd49e8fd79e7e991c32dabe6261',
+    'sha256-ungz' => '52cedd82f55eac2e3bc2149453cb1c17aa34a951b87aa75e1c2b30115e48e6cc',
+    'size' => 5159
+  },
+  'Text-BarGraph-1.1.meta' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => '365cc214ecbb3e39f92d4010a4290ec1',
+    'mtime' => '2011-03-31',
+    'sha256' => '1cd1a32b88a0dfdd06780ad52e818263da8f7f91735e93d64dda84cd2bdb9d74',
+    'size' => 533
+  },
+  'Text-BarGraph-1.1.tar.gz' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => 'a487569c32ebaaf0e2e9348a4f5e2b68',
+    'md5-ungz' => 'dbd9846b5a6ff7e8f5da542dcbcb325e',
+    'mtime' => '2011-03-31',
+    'sha256' => 'a6b26160012a781602b2250f8366b209c2aea1e552caf0affb1b90361187e07f',
+    'sha256-ungz' => 'c2922162467a6617656dcf0ff0f7a5bd478b291aef9c44b2d61392bde6d31e61',
+    'size' => 5207
+  },
+  'Win32-InstallShield-0.4.meta' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => 'd76c032b6759db5db65dcd318ce43f01',
+    'mtime' => '2007-07-11',
+    'sha256' => 'ea39fe443528cb38a86d4494575bfc2dc42a5df6e6049141312733e24ee45ed1',
+    'size' => 444
+  },
+  'Win32-InstallShield-0.4.tar.gz' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => 'd350d69a0d9335c9df700005311576de',
+    'md5-ungz' => '1ce4b2f03446e8eb680f91451bd7c2df',
+    'mtime' => '2007-07-11',
+    'sha256' => '7bbea59cdc7ce624909dbfa306a6f675770d71b8776fc405a404f185dc060ec6',
+    'sha256-ungz' => '431ce376bf47dd8a7043d6f0a504afbca389bb84eecef982126806a566f2926d',
+    'size' => 11724
+  },
+  'Win32-InstallShield-0.5.meta' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => 'ab3da2141f877457633fa0cce5e0e007',
+    'mtime' => '2009-10-14',
+    'sha256' => '02ffafcc0e90b42980add5d3b75945748244560e0cec76f6b791324b49f2411b',
+    'size' => 561
+  },
+  'Win32-InstallShield-0.5.tar.gz' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => '1ef615240c73f1750c38796998cfc0ae',
+    'md5-ungz' => '113580c9fe1ce1ef2590cb7a9cc8ca32',
+    'mtime' => '2009-10-14',
+    'sha256' => '2b20794231f4a1b679cb0b2b9824096a612685c22d939314e209887b1640bb9b',
+    'sha256-ungz' => 'e1bf3ab97659bbe1972928b664c816bd252837b1ba0eeb8b4299b5e37dafabc3',
+    'size' => 14401
+  },
+  'Win32-InstallShield-0.6.meta' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => 'bc522811223061a71dc1cd00531c4c27',
+    'mtime' => '2011-10-18',
+    'sha256' => '1e84179b27d3d69d11c62c85d11d43232516980007a22459a9b2b0ea2028bf09',
+    'size' => 564
+  },
+  'Win32-InstallShield-0.6.tar.gz' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => 'a6ad5171c1069894e4b7402eae403ea3',
+    'md5-ungz' => '6ec2f90dde439c0f6238136241a6fc8b',
+    'mtime' => '2011-10-18',
+    'sha256' => '2b621d1bfb3d35429978f387ab9444e38060627d8b437ef5f727b42cb1c54aa3',
+    'sha256-ungz' => 'fa12d72f94fcf82ee7e1b0ca3564d69255ee3bb66d5bf4867e9b06d3fcad67de',
+    'size' => 15237
+  },
+  'Win32-InstallShield-0.7.meta' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => '16dc3ea70ee8eac06ac49f340ffb10d6',
+    'mtime' => '2011-12-14',
+    'sha256' => '001663445a12d579cd47a8021300e520d9814215cd9428f498de962602b8bdc8',
+    'size' => 561
+  },
+  'Win32-InstallShield-0.7.tar.gz' => {
+    'cpan_path' => 'K/KB/KBAUCOM',
+    'md5' => 'dd939f0d5318698bf7acd16bb19cb763',
+    'md5-ungz' => '42011f51d021069e70e9c78d2a540a8c',
+    'mtime' => '2011-12-14',
+    'sha256' => 'e94178c692c07bbd3c4a3b7bd8b6b4f977795ab5e9355523761f3a37dec84315',
+    'sha256-ungz' => '20b0cc5aef087c96d6cf8197509ab82df171eb6007e0d7d46b4988933fd34266',
+    'size' => 15203
+  }
+};
+__END__
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v2.0.14 (GNU/Linux)
+
+iQEcBAEBAgAGBQJhmufiAAoJELahc5BjdgzKlKAH/1OAoM/cePt26B39wROPotmg
+0Qs6fvp5zLJLu/JlnA9qDBy59da8GwYW9iIMGTHOAYNKcCCaJaF7XDZxPrhx7Ygf
+WqtnOFcslWRcUxyz8+38NG0wtMwWmfKT1/xz+2oKe4gSewghwjRZrCQIs03+odUy
+3vu37TIDIOuIoZ4pGGT2ysjlTa3jUEh0zgq6hGiRX3z2RAKIKls/GURHLyDGr0ac
+D+KfkpFkhWWY2JyQHcesOLeKStc9Fr6HqCTJfkFBmTdaSnXppEA2Xv/E0f/8sIie
+ZYMZRhz1QjsdlflKFnXiIEsXOqD8d9JupLcXxP8/fKnJQLrNkwYHRUAPO01AbWg=
+=M0hU
+-----END PGP SIGNATURE-----

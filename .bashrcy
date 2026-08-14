@@ -1,0 +1,4 @@
+
+
+alias v2update="cd ~/barry_test && cp /sdcard/Download/Sub1.txt ./Sub1.txt && python convert.py"
+alias update-vpn='curl -Lo clash.yaml https://raw.githubusercontent.com/Delta-Kronecker/V2ray-Config/main/config/clash.yaml && python convert.py && cp v2ray_links.txt "/sdcard/Download/v2ray_$(date +%Y-%m-%d_%H-%M).txt" && echo "\n✨ Done! New file created with current timestamp in Download folder. ✨"'
