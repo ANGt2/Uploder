@@ -20,7 +20,6 @@ TOKEN = "8665274076:AAH1b3FPtmYbZIwaMdpVMYbC63LLA3QViU0"
 
 GET_NAME, GET_TYPE, GET_USER, GET_PASS = range(4)
 
-# صف و تسک‌های مربوط به بافر آلبوم کاربران
 USER_QUEUES = {}
 USER_TASKS = {}
 
@@ -48,6 +47,25 @@ def get_user_accounts(user_id):
         USERS_DATA[str_id]["upload_mode"] = False
         save_data(USERS_DATA)
     return USERS_DATA[str_id]
+
+async def send_split_messages(context: ContextTypes.DEFAULT_TYPE, chat_id: int, text: str, reply_markup=None):
+    max_len = 3800
+    if len(text) <= max_len:
+        await context.bot.send_message(chat_id=chat_id, text=text, parse_mode="Markdown", reply_markup=reply_markup)
+        return
+
+    lines = text.split("\n\n")
+    current_chunk = ""
+    for line in lines:
+        if len(current_chunk) + len(line) + 2 > max_len:
+            if current_chunk:
+                await context.bot.send_message(chat_id=chat_id, text=current_chunk, parse_mode="Markdown")
+            current_chunk = line
+        else:
+            current_chunk = f"{current_chunk}\n\n{line}" if current_chunk else line
+
+    if current_chunk:
+        await context.bot.send_message(chat_id=chat_id, text=current_chunk, parse_mode="Markdown", reply_markup=reply_markup)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -291,9 +309,8 @@ async def cancel_conv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await start(update, context)
     return ConversationHandler.END
 
-# پردازشگر دسته‌ای فایل‌ها (Batch / Album Processor)
 async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
-    await asyncio.sleep(2.0)  # انتظار برای دریافت کامل تمامی آیتم‌های آلبوم
+    await asyncio.sleep(2.0)
 
     items = USER_QUEUES.pop(user_id, [])
     USER_TASKS.pop(user_id, None)
@@ -316,7 +333,7 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
 
     status_msg = await context.bot.send_message(
         chat_id=int(user_id),
-        text=f"⚡ **در حال دریافت و آماده‌سازی {count} فایل جهت آپلود توربو...**",
+        text=f"⚡ **در حال دریافت و آماده‌سازی {count} فایل...**",
         parse_mode="Markdown"
     )
 
@@ -326,7 +343,6 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
     try:
         for idx, item in enumerate(items, 1):
             tg_file, original_name = item
-            ext = os.path.splitext(original_name)[1]
             clean_name = f"file_{idx}_{original_name}" if not original_name.startswith("file_") else original_name
             save_path = os.path.join(batch_dir, clean_name)
 
@@ -336,8 +352,7 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
 
         total_mb = round(total_bytes / (1024 * 1024), 2)
         await status_msg.edit_text(
-            f"☁️ **در حال انتقال دسته‌ای {count} فایل ({total_mb} MB) به سرور ابری...**\n"
-            f"🎯 مقصد: `{active_acc}`",
+            f"☁️ **در حال انتقال {count} فایل ({total_mb} MB) به سرور ابری...**\n🎯 مقصد: `{active_acc}`",
             parse_mode="Markdown"
         )
 
@@ -351,27 +366,31 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
         res = subprocess.run(upload_cmd, capture_output=True, text=True)
 
         if res.returncode == 0:
-            links_text = []
+            await status_msg.delete()
+
+            header = (
+                f"✅ **تمامی {count} فایل با موفقیت آپلود شدند!**\n"
+                f"──────────────────\n"
+                f"📦 **حجم کل:** `{total_mb} MB`\n"
+                f"🎯 **اکانت مقصد:** `{active_acc}`\n"
+                f"──────────────────"
+            )
+
+            links_list = []
             for fname in downloaded_files:
                 link_cmd = ["rclone", "link", f"{remote_name}:{fname}"]
                 l_res = subprocess.run(link_cmd, capture_output=True, text=True)
                 url = l_res.stdout.strip()
                 if url.startswith("http"):
-                    links_text.append(f"🔹 **{fname}**:\n`{url}`")
+                    links_list.append(f"🔹 `{fname}`\n🔗 `{url}`")
                 else:
-                    links_text.append(f"🔹 **{fname}**: ذخیره شد.")
+                    links_list.append(f"🔹 `{fname}`: ذخیره شد.")
 
-            all_links = "\n\n".join(links_text)
-            await status_msg.edit_text(
-                f"✅ **تمامی {count} فایل با موفقیت کامل آپلود شدند!**\n"
-                f"──────────────────\n"
-                f"📦 **حجم کل بسته:** `{total_mb} MB`\n"
-                f"🎯 **اکانت مقصد:** `{active_acc}`\n"
-                f"──────────────────\n"
-                f"{all_links}\n\n"
-                f"🟢 **فاز آپلود فعال است؛ بسته بعدی را ارسال کنید.**",
-                parse_mode="Markdown"
-            )
+            footer = "\n\n🟢 **فاز آپلود فعال است؛ بسته بعدی را بفرستید.**"
+            full_response = header + "\n\n" + "\n\n".join(links_list) + footer
+
+            await send_split_messages(context, int(user_id), full_response)
+
         else:
             await status_msg.edit_text(f"❌ خطا هنگام انتقال:\n`{res.stderr.strip()}`", parse_mode="Markdown")
 
@@ -381,13 +400,12 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
         if os.path.exists(batch_dir):
             shutil.rmtree(batch_dir)
 
-# شنونده تمامی فایل‌های ارسالی
 async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     user_info = get_user_accounts(user_id)
 
     if not user_info.get('upload_mode', False):
-        await update.message.reply_text("⚠️ فاز آپلود خاموش است! ابتدا دستور /start را بزنید و دکمه «🚀 شروع فاز آپلود فایل» را انتخاب کنید.")
+        await update.message.reply_text("⚠️ فاز آپلود خاموش است! ابتدا دستور /start را بزنید و فاز آپلود را روشن کنید.")
         return
 
     tg_file = None
@@ -413,7 +431,6 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     USER_QUEUES[user_id].append((tg_file, file_name))
 
-    # ریست کردن تایمر بافر برای گرفتن فایل‌های بعدی آلبوم
     if user_id in USER_TASKS and not USER_TASKS[user_id].done():
         USER_TASKS[user_id].cancel()
 
@@ -442,5 +459,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
 
-    print("🚀 ربات هوشمند با پشتیبانی از آمار حافظه و آپلود دسته‌ای آلبوم فعال شد...")
+    print("🚀 ربات آپلود هوشمند با مدیریت خودکار پیام‌های طولانی فعال شد...")
     app.run_polling()
