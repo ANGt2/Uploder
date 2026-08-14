@@ -33,7 +33,6 @@ def save_data(data):
 USERS_DATA = load_data()
 
 def update_rclone_config():
-    """بازسازی کامل فایل کانفیگ از روی دیتابیس"""
     with open(RCLONE_CONFIG, "w") as f:
         for uid, udata in USERS_DATA.items():
             for acc_name, acc_info in udata.get("accounts", {}).items():
@@ -50,128 +49,47 @@ def get_user_accounts(user_id):
         save_data(USERS_DATA)
     return USERS_DATA[str_id]
 
-# --- هندلرهای اصلی ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_info = get_user_accounts(user_id)
-    is_upload_on = user_info.get("upload_mode", False)
-    active_acc = user_info.get("active_acc") or "❌ هیچ اکانتی فعال نیست"
-    
-    keyboard = [
-        [InlineKeyboardButton("⏹ توقف فاز آپلود" if is_upload_on else "🚀 شروع فاز آپلود", callback_data="toggle_upload")],
-        [InlineKeyboardButton("➕ افزودن اکانت", callback_data="add_account"), InlineKeyboardButton("📊 آمار حافظه", callback_data="storage_stats")],
-        [InlineKeyboardButton("🔄 تغییر اکانت", callback_data="change_account"), InlineKeyboardButton("🗑 حذف اکانت", callback_data="delete_account_user")],
-        [InlineKeyboardButton("💎 وضعیت حساب", callback_data="user_status")]
-    ]
-    
-    text = f"✨ **سیستم مدیریت هوشمند پیشگام**\n🎯 **اکانت فعال:** `{active_acc}`\n⚡ **وضعیت:** {'🟢 روشن' if is_upload_on else '🔴 خاموش'}"
+    active_acc = user_info.get("active_acc") or "❌ فعال نیست"
+    keyboard = [[InlineKeyboardButton("🚀 شروع/توقف آپلود", callback_data="toggle_upload")],
+                [InlineKeyboardButton("➕ افزودن اکانت", callback_data="add_account")],
+                [InlineKeyboardButton("📊 آمار", callback_data="storage_stats")]]
+    text = f"✨ **ربات مدیریت پیشگام**\n🎯 اکانت: `{active_acc}`"
     if update.callback_query: await update.callback_query.edit_message_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
     else: await update.message.reply_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
+async def handle_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
-    user_info = get_user_accounts(user_id)
+    u = get_user_accounts(user_id)
+    if not u.get('upload_mode'): return
     
-    if data == "back_to_main": await start(update, context)
-    elif data == "toggle_upload":
-        user_info["upload_mode"] = not user_info.get("upload_mode", False)
-        save_data(USERS_DATA)
-        await start(update, context)
+    file = await (update.message.document or update.message.video or update.message.audio or update.message.photo[-1]).get_file()
+    name = getattr(update.message.document or update.message.video or update.message.audio, 'file_name', f"file_{update.message.date.timestamp()}")
     
-    elif data == "storage_stats":
-        active_acc = user_info.get("active_acc")
-        if not active_acc:
-            await query.edit_message_text("❌ اکانتی انتخاب نشده.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]]))
-            return
-        remote = user_info['accounts'][active_acc]['remote']
-        res = subprocess.run(["rclone", "size", "--json", f"--config={RCLONE_CONFIG}", f"{remote}:"], capture_output=True, text=True)
-        try:
-            stats = json.loads(res.stdout)
-            await query.edit_message_text(f"📊 **آمار:**\n📁 فایل‌ها: `{stats.get('count', 0)}`\n💾 حجم: `{round(stats.get('bytes', 0)/(1024**3), 2)} GB`", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]]))
-        except: await query.edit_message_text("❌ خطا در خواندن.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")]]))
-
-    elif data.startswith("setacc_"):
-        user_info['active_acc'] = data.replace("setacc_", "")
-        save_data(USERS_DATA)
-        await start(update, context)
-
-    elif data.startswith("delacc_"):
-        del user_info["accounts"][data.replace("delacc_", "")]
-        update_rclone_config()
-        save_data(USERS_DATA)
-        await start(update, context)
-
-# --- منطق افزودن اکانت با نوشتن مستقیم فایل ---
-async def start_add_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.edit_message_text("📝 نام اکانت را بنویسید:")
-    return GET_NAME
-
-async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['new_acc_name'] = update.message.text.strip()
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("☁️ Mega", callback_data="type_mega"), InlineKeyboardButton("📦 TeraBox", callback_data="type_terabox")]])
-    await update.message.reply_text("🌐 نوع اکانت:", reply_markup=kb)
-    return GET_TYPE
-
-async def get_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['new_acc_type'] = update.callback_query.data.replace("type_", "")
-    await update.callback_query.edit_message_text("📧 ایمیل/کاربری:")
-    return GET_USER
-
-async def get_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['new_acc_user'] = update.message.text.strip()
-    await update.message.reply_text("🔑 رمز عبور:")
-    return GET_PASS
-
-async def get_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    p = update.message.text.strip()
-    uid = str(update.effective_user.id)
-    u = get_user_accounts(uid)
-    name = context.user_data['new_acc_name']
-    remote = f"rem_{uid}_{len(u['accounts'])}"
+    if user_id not in USER_QUEUES: USER_QUEUES[user_id] = []
+    USER_QUEUES[user_id].append((file, name))
     
-    # ثبت دستی در دیکشنری و فایل کانفیگ
-    u['accounts'][name] = {"remote": remote, "type": context.user_data['new_acc_type'], "user": context.user_data['new_acc_user'], "pass": p}
-    update_rclone_config()
-    save_data(USERS_DATA)
-    
-    # تست با دستور lsd و فایل کانفیگ اختصاصی
-    res = subprocess.run(["rclone", "lsd", f"--config={RCLONE_CONFIG}", f"{remote}:"], capture_output=True, text=True)
-    if res.returncode == 0:
-        await update.message.reply_text("🎉 اکانت با موفقیت تایید و ثبت شد.")
-    else:
-        await update.message.reply_text("❌ خطا در تایید اتصال.")
-    return ConversationHandler.END
+    if user_id in USER_TASKS and not USER_TASKS[user_id].done(): USER_TASKS[user_id].cancel()
+    USER_TASKS[user_id] = asyncio.create_task(run_upload(user_id, context))
 
-# --- پردازش فایل ---
-async def process_batch_queue(user_id, client):
-    await asyncio.sleep(2)
+async def run_upload(user_id, context):
+    await asyncio.sleep(3)
     items = USER_QUEUES.pop(user_id, [])
-    if not items: return
     u = get_user_accounts(user_id)
     remote = u["accounts"][u['active_acc']]["remote"]
     batch_dir = f"./batch_{user_id}"
     os.makedirs(batch_dir, exist_ok=True)
-    
-    for tg_f, name in items: await tg_f.download_to_drive(os.path.join(batch_dir, name))
-    
+    for f, n in items: await f.download_to_drive(os.path.join(batch_dir, n))
     subprocess.run(["rclone", "copy", f"--config={RCLONE_CONFIG}", batch_dir, f"{remote}:/"], capture_output=True)
     shutil.rmtree(batch_dir)
-    await client.send_message(user_id, "✅ آپلود تمام شد.")
-
-@app.on_message(filters.private & (filters.document | filters.video | filters.audio | filters.photo))
-async def handle_files(client, message):
-    uid = str(message.from_user.id)
-    if not get_user_accounts(uid).get('upload_mode', False): return
-    
-    tg_f = await message.download()
-    name = getattr(message.document or message.video or message.audio, 'file_name', f"file_{uid}")
-    if uid not in USER_QUEUES: USER_QUEUES[uid] = []
-    USER_QUEUES[uid].append((tg_f, name))
-    USER_TASKS[uid] = asyncio.create_task(process_batch_queue(uid, client))
+    await context.bot.send_message(chat_id=int(user_id), text="✅ آپلود انجام شد.")
 
 if __name__ == '__main__':
     update_rclone_config()
-    app.run()
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(lambda u,c: start(u,c), pattern="back_to_main"))
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_files))
+    app.run_polling()
