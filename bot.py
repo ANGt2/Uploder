@@ -38,6 +38,19 @@ def save_data(data):
 
 USERS_DATA = load_data()
 
+def rebuild_rclone_configs():
+    for uid, udata in USERS_DATA.items():
+        for acc_name, acc_info in udata.get("accounts", {}).items():
+            r_name = acc_info.get("remote")
+            s_type = acc_info.get("type", "mega")
+            user = acc_info.get("user")
+            pwd = acc_info.get("pass")
+            if r_name and user and pwd:
+                subprocess.run(
+                    ["rclone", "config", "create", r_name, s_type, f"user={user}", f"pass={pwd}"],
+                    capture_output=True, text=True
+                )
+
 def get_user_accounts(user_id):
     str_id = str(user_id)
     if str_id not in USERS_DATA:
@@ -88,6 +101,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.edit_message_text(text, parse_mode="Markdown", reply_markup=reply_markup)
     else:
         await update.message.reply_text(text, parse_mode="Markdown", reply_markup=reply_markup)
+
+async def manual_backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    save_data(USERS_DATA)
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "rb") as f:
+            await context.bot.send_document(
+                chat_id=ADMIN_ID,
+                document=f,
+                caption="💾 **نسخه پشتیبان پایگاه داده ربات**",
+                parse_mode="Markdown"
+            )
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -425,8 +451,11 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     USER_TASKS[user_id] = asyncio.create_task(process_batch_queue(user_id, context))
 
+async def post_init(application):
+    rebuild_rclone_configs()
+
 if __name__ == '__main__':
-    app = ApplicationBuilder().token(TOKEN).read_timeout(120).write_timeout(120).build()
+    app = ApplicationBuilder().token(TOKEN).post_init(post_init).read_timeout(120).write_timeout(120).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(start_add_account, pattern="^add_account$")],
@@ -444,9 +473,10 @@ if __name__ == '__main__':
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
+    app.add_handler(CommandHandler("backup", manual_backup))
     app.add_handler(conv_handler)
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
 
-    print("🚀 ربات به نسخه اصلی و تمیز بازگردانی شد...")
+    print("🚀 ربات با چیدمان کامل و دیتابیس هماهنگ فعال شد...")
     app.run_polling()
