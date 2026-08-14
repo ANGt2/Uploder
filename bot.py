@@ -16,8 +16,6 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 ADMIN_ID = 5927935256
 DATA_FILE = "users_data.json"
 TOKEN = "8665274076:AAH1b3FPtmYbZIwaMdpVMYbC63LLA3QViU0"
-# آدرس سرور محلی دانلود تلگرام
-LOCAL_BOT_API_URL = "http://127.0.0.1:8081/bot"
 # ---------------------------------------------------------
 
 GET_NAME, GET_TYPE, GET_USER, GET_PASS = range(4)
@@ -79,7 +77,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_upload_on = user_info.get("upload_mode", False)
     active_acc = user_info.get("active_acc") or "❌ هیچ اکانتی فعال نیست"
 
-    upload_status = "🟢 روشن (آماده دریافت فایل تا ۲ گیگابایت)" if is_upload_on else "🔴 خاموش"
+    upload_status = "🟢 روشن (آماده دریافت تکی یا گروهی)" if is_upload_on else "🔴 خاموش"
     upload_btn_text = "⏹ توقف فاز آپلود" if is_upload_on else "🚀 شروع فاز آپلود فایل"
 
     keyboard = [
@@ -371,7 +369,6 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
             clean_name = f"f_{idx}_{original_name}"
             save_path = os.path.join(batch_dir, clean_name)
 
-            # دانلود مستقیم و پرسرعت تا سقف ۲ گیگابایت از سرور محلی
             await tg_file.download_to_drive(save_path)
             total_bytes += os.path.getsize(save_path)
             downloaded_files.append(clean_name)
@@ -470,15 +467,12 @@ async def post_init(application):
     rebuild_rclone_configs()
 
 if __name__ == '__main__':
-    # پیکربندی ربات برای اتصال به سرور محلی تلگرام جهت دانلود تا سقف ۲ گیگابایت
     app = (
         ApplicationBuilder()
         .token(TOKEN)
-        .base_url(LOCAL_BOT_API_URL)
-        .local_mode(True)
         .post_init(post_init)
-        .read_timeout(600)
-        .write_timeout(600)
+        .read_timeout(120)
+        .write_timeout(120)
         .build()
     )
 
@@ -502,5 +496,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
 
-    print("🚀 ربات با سرور محلی تلگرام (دانلود تا سقف ۲ گیگابایت) فعال شد...")
+    print("🚀 ربات به صورت پایدار و ۱۰۰٪ آنلاین روشن شد...")
     app.run_polling()
