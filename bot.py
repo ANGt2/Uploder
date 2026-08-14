@@ -32,20 +32,64 @@ def load_data():
             return {}
     return {}
 
-def save_data(data):
+def save_data_local(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 USERS_DATA = load_data()
 
+# بازسازی کانفیگ‌های Rclone از روی دیتابیس
+def rebuild_rclone_configs():
+    for uid, udata in USERS_DATA.items():
+        for acc_name, acc_info in udata.get("accounts", {}).items():
+            r_name = acc_info.get("remote")
+            s_type = acc_info.get("type", "mega")
+            user = acc_info.get("user")
+            pwd = acc_info.get("pass")
+            if r_name and user and pwd:
+                subprocess.run(
+                    ["rclone", "config", "create", r_name, s_type, f"user={user}", f"pass={pwd}"],
+                    capture_output=True, text=True
+                )
+
+# بکاپ ابری روی تلگرام ادمین
+async def sync_data_to_telegram(context: ContextTypes.DEFAULT_TYPE):
+    save_data_local(USERS_DATA)
+    try:
+        with open(DATA_FILE, "rb") as f:
+            msg = await context.bot.send_document(
+                chat_id=ADMIN_ID,
+                document=f,
+                caption="💾 **نسخه پشتیبان پایگاه داده ربات (همگام‌سازی خودکار)**",
+                parse_mode="Markdown",
+                disable_notification=True
+            )
+            await context.bot.pin_chat_message(chat_id=ADMIN_ID, message_id=msg.message_id, disable_notification=True)
+    except Exception as e:
+        logging.error(f"Error syncing data to TG: {e}")
+
+# بازیابی خودکار داده‌ها در لحظه روشن شدن ربات
+async def restore_data_from_telegram(app):
+    global USERS_DATA
+    try:
+        chat = await app.bot.get_chat(ADMIN_ID)
+        if chat.pinned_message and chat.pinned_message.document:
+            tg_file = await chat.pinned_message.document.get_file()
+            await tg_file.download_to_drive(DATA_FILE)
+            USERS_DATA = load_data()
+            rebuild_rclone_configs()
+            logging.info("🎉 Database and Rclone configs successfully restored from Telegram cloud!")
+    except Exception as e:
+        logging.error(f"Restore check error: {e}")
+
 def get_user_accounts(user_id):
     str_id = str(user_id)
     if str_id not in USERS_DATA:
         USERS_DATA[str_id] = {"accounts": {}, "active_acc": None, "upload_mode": False}
-        save_data(USERS_DATA)
+        save_data_local(USERS_DATA)
     if "upload_mode" not in USERS_DATA[str_id]:
         USERS_DATA[str_id]["upload_mode"] = False
-        save_data(USERS_DATA)
+        save_data_local(USERS_DATA)
     return USERS_DATA[str_id]
 
 async def safe_send_text(context: ContextTypes.DEFAULT_TYPE, chat_id: int, text: str):
@@ -124,7 +168,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         user_info["upload_mode"] = not user_info.get("upload_mode", False)
-        save_data(USERS_DATA)
+        await sync_data_to_telegram(context)
         await start(update, context)
 
     elif data == "storage_stats":
@@ -177,7 +221,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("setacc_"):
         acc_name = data.replace("setacc_", "")
         user_info['active_acc'] = acc_name
-        save_data(USERS_DATA)
+        await sync_data_to_telegram(context)
         await start(update, context)
 
     elif data == "delete_account_user":
@@ -201,7 +245,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             del user_info["accounts"][acc_name]
             if user_info.get("active_acc") == acc_name:
                 user_info["active_acc"] = list(user_info["accounts"].keys())[0] if user_info["accounts"] else None
-            save_data(USERS_DATA)
+            await sync_data_to_telegram(context)
 
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
         await query.edit_message_text(f"🗑 اکانت **{acc_name}** با موفقیت حذف گردید.", parse_mode="Markdown", reply_markup=kb)
@@ -285,9 +329,15 @@ async def get_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main")]])
 
     if res.returncode == 0:
-        user_info['accounts'][acc_name] = {"remote": remote_name, "path": f"{remote_name}:/"}
+        user_info['accounts'][acc_name] = {
+            "remote": remote_name,
+            "type": srv_type,
+            "user": acc_user,
+            "pass": obs_pass,
+            "path": f"{remote_name}:/"
+        }
         user_info['active_acc'] = acc_name
-        save_data(USERS_DATA)
+        await sync_data_to_telegram(context)
         await msg.edit_text(f"🎉 **تبریک!** اکانت **{acc_name}** با موفقیت اضافه و تایید شد.", parse_mode="Markdown", reply_markup=kb)
     else:
         subprocess.run(["rclone", "config", "delete", remote_name], capture_output=True, text=True)
@@ -345,7 +395,6 @@ async def process_batch_queue(user_id: str, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-        # دستور بهینه و بدون فلگ‌های نامعتبر
         upload_cmd = [
             "rclone", "copy", batch_dir, target,
             "--transfers", "4",
@@ -420,8 +469,11 @@ async def handle_all_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     USER_TASKS[user_id] = asyncio.create_task(process_batch_queue(user_id, context))
 
+async def post_init(application):
+    await restore_data_from_telegram(application)
+
 if __name__ == '__main__':
-    app = ApplicationBuilder().token(TOKEN).read_timeout(120).write_timeout(120).build()
+    app = ApplicationBuilder().token(TOKEN).post_init(post_init).read_timeout(120).write_timeout(120).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(start_add_account, pattern="^add_account$")],
@@ -443,5 +495,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_all_files))
 
-    print("🚀 ربات با دستور تمیز و استاندارد Rclone فعال شد...")
+    print("🚀 ربات با قابلیت همگام‌سازی ابری و دیتابیس دائمی فعال شد...")
     app.run_polling()
